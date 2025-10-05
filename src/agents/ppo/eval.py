@@ -61,9 +61,9 @@ def main(argv):
     config = yaml.load(f, Loader=yaml.Loader)
 
   with config.unlocked():
-    config.environment.jumping_distance_schedule = [1., 0.3]
+    config.environment.jumping_distance_schedule = torch.linspace(0.3, 1.0, 100) # [1.0,0.3]
     # config.environment.qp_body_inertia = np.array([0.14, 0.35, 0.35]) * 6
-    config.environment.max_jumps = 6
+    config.environment.max_jumps = 300
 
   env = config.env_class(num_envs=FLAGS.num_envs,
                          device=device,

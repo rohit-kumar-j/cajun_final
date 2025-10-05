@@ -384,8 +384,7 @@ class JumpEnv:
 
       if self._config.get('use_yaw_feedback', False):
         yaw_err = (self._init_yaw - self._robot.base_orientation_rpy[:, 2])
-        yaw_err = torch.remainder(yaw_err + 3 * torch.pi,
-                                  2 * torch.pi) - torch.pi
+        yaw_err = torch.remainder(yaw_err + 3 * torch.pi, 2 * torch.pi) - torch.pi
         desired_yaw_rate = 1 * yaw_err
         self._torque_optimizer.desired_angular_velocity = torch.stack(
             (zero, com_action[:, 6], desired_yaw_rate), dim=1)
@@ -682,3 +681,8 @@ class JumpEnv:
   @property
   def device(self):
     return self._device
+
+  @property
+  def base_vel_world_frame(self):
+    return self.robot._base_lin_vel_world
+
