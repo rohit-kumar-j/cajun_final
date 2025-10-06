@@ -68,9 +68,9 @@ def compute_desired_foot_positions(
       base_rot_mat, hip_velocity_body_frame.transpose(1, 2)).transpose(1, 2)
 
   land_position = hip_velocity * stance_duration[:, :, None] / 2
-  land_position[..., 0] = torch.clip(land_position[..., 0], -0.15, 0.15)
-  land_position[..., 1] = torch.clip(land_position[..., 1], -0.08, 0.08)
-  land_position += hip_position
+  land_position[..., 0] = torch.clip(land_position[..., 0], -0.15, 0.4)
+  land_position[..., 1] = torch.clip(land_position[..., 1], -0.18, 0.18)
+  land_position += hip_position + 0.10
   land_position[..., 2] = (-base_height[:, None] + foot_landing_clearance)
   # -land_position[..., 0] * projected_gravity[:, 0, None]
   # -land_position[..., 1] * projected_gravity[:, 1, None]

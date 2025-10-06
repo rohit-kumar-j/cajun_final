@@ -28,7 +28,7 @@ class Go1Rewards:
     return torch.ones(self._num_envs, device=self._device)
 
   def height_reward(self):
-    return -torch.square(self._robot.base_position[:, 2] - 0.26)
+    return -torch.square(self._robot.base_position[:, 2] - 0.3)
 
   def foot_slipping_reward(self):
     foot_slipping = torch.sum(

@@ -17,9 +17,9 @@ import matplotlib.pyplot as plt
 from collections import deque
 
 def calculate_cot_per_stride(joint_torques, joint_velocities, dt, x_start, x_end, time_start, time_end, robot_mass, g=9.81):
-    """
+  """
     Calculate Cost of Transport and velocity for a single stride.
-    
+
     Args:
         joint_torques: Array of shape (num_joints, num_timesteps) - torques during stride
         joint_velocities: Array of shape (num_joints, num_timesteps) - velocities during stride
@@ -30,26 +30,30 @@ def calculate_cot_per_stride(joint_torques, joint_velocities, dt, x_start, x_end
         time_end: Time at stride end (seconds)
         robot_mass: Total mass of the robot (kg)
         g: Gravitational acceleration (m/s², default 9.81)
-    
+
     Returns:
         velocity: Average velocity during stride (m/s)
         cot: Cost of Transport (dimensionless)
     """
-    # Calculate stride velocity
-    distance = x_end - x_start
-    time_diff = time_end - time_start
-    velocity = distance / time_diff
-    
-    # Calculate mechanical work: sum of |torque * velocity * dt| over all joints and timesteps
-    mechanical_work = np.sum(np.abs(joint_torques * joint_velocities * dt))
-    
-    # Calculate gravitational work: mass * g * distance
-    gravitational_work = robot_mass * g * np.abs(distance)
-    
-    # COT = mechanical work / gravitational work
-    cot = mechanical_work / gravitational_work
-    
-    return velocity, cot
+  # Calculate stride velocity
+  distance = x_end - x_start
+  time_diff = time_end - time_start
+  velocity = distance / time_diff
+
+  # Calculate mechanical work: sum of |torque * velocity * dt| over all joints and timesteps
+  # mechanical_work = np.sum(np.abs(joint_torques * joint_velocities * dt))
+
+  joint_work = np.sum(joint_torques * joint_velocities * dt, axis=1)  # Sum over time for each joint
+  mechanical_work = np.sum(np.abs(joint_work))  # Then take absolute value and sum joints
+
+
+  # Calculate gravitational work: mass * g * distance
+  gravitational_work = robot_mass * g * np.abs(distance)
+
+  # COT = mechanical work / gravitational work
+  cot = mechanical_work / gravitational_work
+
+  return velocity, cot
 
 class RealtimePlotter:
   """Lightweight real-time plotter for simulation data with minimal overhead."""
@@ -73,7 +77,7 @@ class RealtimePlotter:
     self.velocity_data = {'x': deque(maxlen=max_points), 'y': deque(maxlen=max_points)}
     self.stride_data = {'x': deque(maxlen=max_points), 'y': deque(maxlen=max_points)}
     self.stride_markers = {'x': [], 'y': []}
-    
+
     # COT vs Velocity data
     self.cot_velocity_data = {'x': deque(maxlen=max_points), 'y': deque(maxlen=max_points)}
 
@@ -93,26 +97,26 @@ class RealtimePlotter:
     ax1.set_title('Velocity and Stride Length vs Time (with Stride Events)')
     ax1.grid(True, alpha=0.3)
     ax1.tick_params(axis='y', labelcolor='b')
-    
+
     # Velocity line on primary y-axis
     self.velocity_line, = ax1.plot([], [], 'b-', linewidth=2, label='Velocity')
-    
+
     # Create secondary y-axis for stride length
     self.ax2 = ax1.twinx()
     self.ax2.set_ylabel('Stride Length (m)', color='g')
     self.ax2.tick_params(axis='y', labelcolor='g')
-    
+
     # Stride length line on secondary y-axis
     self.stride_line, = self.ax2.plot([], [], 'g-', linewidth=2, label='Stride Length')
-    
+
     # Vertical lines for stride events
     self.stride_lines = []
-    
+
     # Combine legends from both axes
     lines1, labels1 = ax1.get_legend_handles_labels()
     lines2, labels2 = self.ax2.get_legend_handles_labels()
     ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
-    
+
     ax1.set_xlim(0, 10)
     ax1.set_ylim(0, 3)
     self.ax2.set_ylim(0, 2)
@@ -124,7 +128,7 @@ class RealtimePlotter:
     ax.set_ylabel('Cost of Transport (COT)')
     ax.set_title('Cost of Transport vs Average Velocity')
     ax.grid(True, alpha=0.3)
-    
+
     # Scatter plot for COT vs velocity
     self.cot_scatter = ax.scatter([], [], c='purple', marker='o', s=50, alpha=0.6, label='COT')
     ax.legend(loc='upper right')
@@ -165,7 +169,7 @@ class RealtimePlotter:
   def add_cot_data(self, velocity, cot):
     """
     Add COT vs velocity data point.
-    
+
     Args:
         velocity: Average velocity during stride (m/s)
         cot: Cost of Transport (dimensionless)
@@ -177,7 +181,7 @@ class RealtimePlotter:
     """Update the plots efficiently."""
     try:
       ax1 = self.axes[0]
-      
+
       # Update velocity plot
       if len(self.velocity_data['x']) > 0:
         self.velocity_line.set_data(
@@ -196,7 +200,7 @@ class RealtimePlotter:
 
       # Update stride event markers (vertical lines)
       self._update_stride_markers()
-      
+
       # Update COT scatter plot
       if len(self.cot_velocity_data['x']) > 0:
         self.cot_scatter.set_offsets(
@@ -216,16 +220,16 @@ class RealtimePlotter:
       # Remove old lines
       for line in self.stride_lines:
         line.remove()
-      
+
       self.stride_lines.clear()
-      
+
       # Add new lines for each stride event
       for stride_time in self.stride_markers['x']:
         line = self.axes[0].axvline(x=stride_time, color='red', linestyle='--', 
-                                     linewidth=1.5, alpha=0.7, 
-                                     label='Stride Event' if not self.stride_lines else '')
+                                    linewidth=1.5, alpha=0.7, 
+                                    label='Stride Event' if not self.stride_lines else '')
         self.stride_lines.append(line)
-      
+
       # Update legend if we have stride events
       if self.stride_lines:
         lines1, labels1 = self.axes[0].get_legend_handles_labels()
@@ -264,12 +268,12 @@ class RealtimePlotter:
     if len(data['x']) > 0 and len(data['y']) > 0:
       x_data = list(data['x'])
       y_data = list(data['y'])
-      
+
       # X-axis (velocity): add 10% margin
       x_min, x_max = min(x_data), max(x_data)
       x_margin = (x_max - x_min) * 0.1 if (x_max - x_min) > 0 else 0.1
       ax.set_xlim(max(0, x_min - x_margin), x_max + x_margin)
-      
+
       # Y-axis (COT): add 10% margin
       y_min, y_max = min(y_data), max(y_data)
       y_margin = (y_max - y_min) * 0.1 if (y_max - y_min) > 0 else 0.1
@@ -297,8 +301,8 @@ FLAGS = flags.FLAGS
 
 def get_latest_policy_path(logdir):
   files = [
-      entry for entry in os.listdir(logdir)
-      if os.path.isfile(os.path.join(logdir, entry))
+    entry for entry in os.listdir(logdir)
+    if os.path.isfile(os.path.join(logdir, entry))
   ]
   files.sort(key=lambda entry: os.path.getmtime(os.path.join(logdir, entry)))
   files = files[::-1]
@@ -329,8 +333,10 @@ def main(argv):
     config = yaml.load(f, Loader=yaml.Loader)
 
   with config.unlocked():
-    config.environment.jumping_distance_schedule = torch.linspace(0.3, 1.0, 100)
+    config.environment.jumping_distance_schedule = torch.linspace(0.5, 3.0, 100)
     config.environment.max_jumps = 300
+    config.environment.stepping_frequency = 1
+
 
   env = config.env_class(num_envs=FLAGS.num_envs,
                          device=device,
@@ -340,7 +346,7 @@ def main(argv):
   env = env_wrappers.RangeNormalize(env)
   if FLAGS.use_real_robot:
     env.robot.state_estimator.use_external_contact_estimator = (
-        not FLAGS.use_contact_sensor)
+      not FLAGS.use_contact_sensor)
 
   # Retrieve policy
   runner = OnPolicyRunner(env, config.training, policy_path, device=device)
@@ -358,6 +364,15 @@ def main(argv):
 
   # Initialize plotter
   plotter = None
+  max_strides = 1000
+  cot_data_arrays = {
+    'velocity': np.zeros(max_strides, dtype=np.float32),
+    'cot': np.zeros(max_strides, dtype=np.float32),
+    # 'time': np.zeros(max_strides, dtype=np.float32),
+    # 'stride_length': np.zeros(max_strides, dtype=np.float32)
+  }
+  cot_data_count = 0
+
   if FLAGS.enable_plotting:
     plotter = RealtimePlotter(
       max_points=2000, 
@@ -403,7 +418,7 @@ def main(argv):
         stride_velocities[:, stride_step_count] = current_joint_velocities
         stride_step_count += 1
 
-      
+
       # Extract stride length from environment
       stride_length = env._jumping_distance[0,0].item() if torch.is_tensor(env._jumping_distance[0]) else float(env._jumping_distance)
       # print(f"Current Stride Length: {stride_length:.3f}m, Time: {current_time:.2f}s")
@@ -437,8 +452,16 @@ def main(argv):
 
             # Optional: Filter out invalid strides (like MATLAB does with COT < 20)
             if stride_cot < 20:
+              if cot_data_count < max_strides:
+                cot_data_arrays['velocity'][cot_data_count] = stride_velocity
+                cot_data_arrays['cot'][cot_data_count] = stride_cot
+                # cot_data_arrays['time'][cot_data_count] = current_time
+                # cot_data_arrays['stride_length'][cot_data_count] = stride_length
+                cot_data_count += 1
+
               if plotter is not None:
                 plotter.add_cot_data(stride_velocity, stride_cot)
+
 
           # Reset for next stride (overwrite from beginning)
           stride_step_count = 0
@@ -456,7 +479,7 @@ def main(argv):
 
       total_reward += reward
       logs.extend(info["logs"])
-      
+
       if done.any():
         print(info["episode"])
         break
@@ -472,6 +495,26 @@ def main(argv):
   print(f"Time elapsed: {elapsed:.2f}s")
   print(f"Steps per second: {steps_count / elapsed:.1f} Hz")
   print(f"{'='*60}\n")
+
+  # Save COT data to CSV efficiently
+  if cot_data_count > 0:
+    # Trim arrays to actual data size
+    cot_output_path = os.path.join(root_path, f"cot_data_{datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}.csv")
+    # Stack arrays and save (most efficient for numpy)
+    data_to_save = np.column_stack([
+      cot_data_arrays['velocity'][:cot_data_count],
+      cot_data_arrays['cot'][:cot_data_count],
+      # cot_data_arrays['time'][:cot_data_count],
+      # cot_data_arrays['stride_length'][:cot_data_count]
+    ])
+    np.savetxt(cot_output_path, data_to_save, 
+               delimiter=',', 
+               header='velocity,cot',#,time,stride_length',
+               comments='',
+               fmt='%.6f')
+
+    print(f"COT data saved to: {cot_output_path}")
+    print(f"Total strides recorded: {cot_data_count}")
 
   if plotter is not None:
     print("Plot window is open. Press Enter to close and exit...")

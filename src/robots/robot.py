@@ -281,15 +281,15 @@ class Robot:
       if self._gym.query_viewer_has_closed(self._viewer):
         sys.exit()
 
+      # For view from right side
       mean_pos = torch.min(self.base_position_world,
-                           dim=0)[0].cpu().numpy() + np.array([-2.5, -2.5, 2.5])
-      # mean_pos = torch.min(self.base_position_world,
-      #                      dim=0)[0].cpu().numpy() + np.array([0.5, -1., 0.])
+                           dim=0)[0].cpu().numpy() + np.array([0., -2.0, 0.2])  # Side view (no X offset, positive Y)
       target_pos = torch.mean(self.base_position_world,
                               dim=0).cpu().numpy() + np.array([0., 2., -0.5])
       cam_pos = gymapi.Vec3(*mean_pos)
       cam_target = gymapi.Vec3(*target_pos)
       self._gym.viewer_camera_look_at(self._viewer, None, cam_pos, cam_target)
+
 
       if self._device != "cpu":
         self._gym.fetch_results(self._sim, True)

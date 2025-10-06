@@ -338,7 +338,7 @@ class JumpEnv:
 
     return self._obs_buf, self._privileged_obs_buf
 
-  def step(self, action: torch.Tensor):
+  def step_old(self, action: torch.Tensor):
     self._last_action = torch.clone(action)
     action = torch.clip(action, self._action_lb, self._action_ub)
     sum_reward = torch.zeros(self._num_envs, device=self._device)
@@ -431,6 +431,178 @@ class JumpEnv:
                foot_positions_in_base_frame,
                env_action=action,
                env_obs=torch.clone(self._obs_buf)))
+      if self._use_real_robot:
+        logs[-1]["base_acc"] = np.array(self._robot.raw_state.imu.accelerometer)  # pytype: disable=attribute-error
+
+      self._robot.step(motor_action)
+
+      self._obs_buf = self._get_observations()
+      self._privileged_obs_buf = self.get_privileged_observations()
+      rewards = self.get_reward()
+      dones = torch.logical_or(dones, self._is_done())
+      sum_reward += rewards * torch.logical_not(dones)
+
+    # print(f"Time: {self._robot.time_since_reset}")
+    # print(f"Gait: {gait_action}")
+    # print(f"Foot: {foot_action}")
+    # print(f"Phase: {self._obs_buf[:, 3]}")
+    # print(f"Desired contact: {self._gait_generator.desired_contact_state}")
+    # print(f"Desired Position: {self._torque_optimizer.desired_base_position}")
+    # print(f"Current Position: {self._robot.base_position}")
+    # print(
+    #     f"Desired Velocity: {self._torque_optimizer.desired_linear_velocity}")
+    # print(f"Current Velocity: {self._robot.base_velocity_world_frame}")
+    # print(
+    #     f"Desired RPY: {self._torque_optimizer.desired_base_orientation_rpy}")
+    # print(f"Current RPY: {self._robot.base_orientation_rpy}")
+    # print(
+    #     f"Desired Angular Vel: {self._torque_optimizer.desired_angular_velocity}"
+    # )
+    # print(
+    #     f"Current Angular vel: {self._robot.base_angular_velocity_body_frame}")
+    # print(f"Desired Acc: {self._desired_acc}")
+    # print(f"Solved Acc: {self._solved_acc}")
+    # ans = input("Any Key...")
+    # if ans in ["Y", "y"]:
+    #   import pdb
+    #   pdb.set_trace()
+    self._extras["logs"] = logs
+    # Resample commands
+    new_cycle_count = (self._gait_generator.true_phase / (2 * torch.pi)).long()
+    finished_cycle = new_cycle_count > self._cycle_count
+    env_ids_to_resample = finished_cycle.nonzero(as_tuple=False).flatten()
+    self._cycle_count = new_cycle_count
+
+    is_terminal = torch.logical_or(finished_cycle, dones)
+    if is_terminal.any():
+      sum_reward += self.get_terminal_reward(is_terminal, dones)
+      # print(self.get_terminal_reward(is_terminal))
+      # import pdb
+      # pdb.set_trace()
+    self._resample_command(env_ids_to_resample)
+    if not self._use_real_robot:
+      self.reset_idx(dones.nonzero(as_tuple=False).flatten())
+    # if dones.any():
+    #   import pdb
+    #   pdb.set_trace()
+
+    if self._show_gui:
+      self._robot.render()
+    return self._obs_buf, self._privileged_obs_buf, sum_reward, dones, self._extras
+
+  def step(self, action: torch.Tensor):
+    self._last_action = torch.clone(action)
+    action = torch.clip(action, self._action_lb, self._action_ub)
+    sum_reward = torch.zeros(self._num_envs, device=self._device)
+    dones = torch.zeros(self._num_envs, device=self._device, dtype=torch.bool)
+    self._steps_count += 1
+    logs = []
+
+    zero = torch.zeros(self._num_envs, device=self._device)
+    gait_action, com_action, foot_action = self._split_action(action)
+    # if foot_action is not None:
+    #   print(f"FR foot action: {foot_action[0, 0]}")
+    #   print(f"FL foot action: {foot_action[0, 1]}")
+    #   print(f"RR foot action: {foot_action[0, 2]}")
+    #   print(f"RL foot action: {foot_action[0, 3]}")
+
+
+    # Compute desired forward velocity from stride length and frequency
+    if foot_action is not None and gait_action is not None:
+      # Calculate stride length as the mean norm of foot actions in XY plane
+      stride_length = torch.norm(foot_action[:, :, :2], dim=2).mean(dim=1)
+      desired_forward_vel = stride_length * gait_action[:, 0]
+    else:
+      # Fall back to direct velocity control if foot/gait actions not available
+      desired_forward_vel = com_action[:, 1]
+
+    desired_linear_vel_z = (com_action[:, 2] -
+      self._torque_optimizer.desired_base_position[:, 2]
+                            ) / self._config.env_dt
+    desired_linear_vel_z = desired_linear_vel_z.clip(min=-0., max=0.)
+    desired_ang_vel_y = (
+      com_action[:, 4] -
+        self._torque_optimizer.desired_base_orientation_rpy[:, 1]
+    ) / self._config.env_dt
+    desired_ang_vel_y = desired_ang_vel_y.clip(min=-0., max=0.)
+
+    for step in range(
+      max(int(self._config.env_dt / self._robot.control_timestep), 1)):
+      self._gait_generator.update()
+      self._swing_leg_controller.update()
+      if self._use_real_robot:
+        self._robot.state_estimator.update_foot_contact(
+          self._gait_generator.desired_contact_state)  # pytype: disable=attribute-error
+        self._robot.update_desired_foot_contact(
+          self._gait_generator.desired_contact_state)  # pytype: disable=attribute-error
+
+      if gait_action is not None:
+        self._gait_generator.stepping_frequency = gait_action[:, 0]
+
+      # ORIGINAL: CoM pose action
+      self._torque_optimizer.desired_base_position = torch.stack(
+        (self._robot.base_position[:, 0], self._robot.base_position[:, 1],
+         com_action[:, 0]),
+        dim=1)
+
+      # MODIFICATION: Use computed velocity from stride length × frequency
+      self._torque_optimizer.desired_linear_velocity = torch.stack(
+        (desired_forward_vel, com_action[:, 2] * 0, com_action[:, 3]), dim=1)
+
+      self._torque_optimizer.desired_base_orientation_rpy = torch.stack(
+        (com_action[:, 4] * 0, com_action[:, 5],
+         self._robot.base_orientation_rpy[:, 2]),
+        dim=1)
+
+      if self._config.get('use_yaw_feedback', False):
+        yaw_err = (self._init_yaw - self._robot.base_orientation_rpy[:, 2])
+        yaw_err = torch.remainder(yaw_err + 3 * torch.pi, 2 * torch.pi) - torch.pi
+        desired_yaw_rate = 1 * yaw_err
+        self._torque_optimizer.desired_angular_velocity = torch.stack(
+          (zero, com_action[:, 6], desired_yaw_rate), dim=1)
+      else:
+        self._torque_optimizer.desired_angular_velocity = torch.stack(
+          (zero, com_action[:, 6], com_action[:, 7] * 0), dim=1)
+
+      desired_foot_positions = self._swing_leg_controller.desired_foot_positions
+      if foot_action is not None:
+        base_yaw = self._robot.base_orientation_rpy[:, 2]
+        cos_yaw = torch.cos(base_yaw)[:, None]
+        sin_yaw = torch.sin(base_yaw)[:, None]
+        # foot_action[:, :, 0] *= -1 # DEBUG HACK
+        foot_action_world = torch.clone(foot_action)
+        foot_action_world[:, :, 0] = (cos_yaw * foot_action[:, :, 0] -
+          sin_yaw * foot_action[:, :, 1])
+        foot_action_world[:, :, 1] = (sin_yaw * foot_action[:, :, 0] +
+          cos_yaw * foot_action[:, :, 1])
+        desired_foot_positions += foot_action_world
+
+      motor_action, self._desired_acc, self._solved_acc, self._qp_cost, self._num_clips = self._torque_optimizer.get_action(
+        self._gait_generator.desired_contact_state,
+        swing_foot_position=desired_foot_positions)
+
+      logs.append(
+        dict(timestamp=self._robot.time_since_reset,
+             base_position=torch.clone(self._robot.base_position),
+             base_orientation_rpy=torch.clone(
+             self._robot.base_orientation_rpy),
+             base_velocity=torch.clone(self._robot.base_velocity_body_frame),
+             base_angular_velocity=torch.clone(
+             self._robot.base_angular_velocity_body_frame),
+             motor_positions=torch.clone(self._robot.motor_positions),
+             motor_velocities=torch.clone(self._robot.motor_velocities),
+             motor_action=motor_action,
+             motor_torques=self._robot.motor_torques,
+             num_clips=self._num_clips,
+             foot_contact_state=self._gait_generator.desired_contact_state,
+             foot_contact_force=self._robot.foot_contact_forces,
+             desired_swing_foot_position=desired_foot_positions,
+             desired_acc_body_frame=self._desired_acc,
+             solved_acc_body_frame=self._solved_acc,
+             foot_positions_in_base_frame=self._robot.
+             foot_positions_in_base_frame,
+             env_action=action,
+             env_obs=torch.clone(self._obs_buf)))
       if self._use_real_robot:
         logs[-1]["base_acc"] = np.array(self._robot.raw_state.imu.accelerometer)  # pytype: disable=attribute-error
 
