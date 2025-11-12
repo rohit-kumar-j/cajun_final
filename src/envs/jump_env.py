@@ -140,9 +140,10 @@ class JumpEnv:
     self._swing_leg_controller = raibert_swing_leg_controller.RaibertSwingLegController(
         self._robot,
         self._gait_generator,
+        self,
         foot_height=self._config.get('swing_foot_height', 0.),
-        foot_landing_clearance=self._config.get('swing_foot_landing_clearance',
-                                                0.))
+        foot_landing_clearance=self._config.get('swing_foot_landing_clearance', 0.)
+    )
     self._torque_optimizer = qp_torque_optimizer.QPTorqueOptimizer(
         self._robot,
         base_position_kp=self._config.get('base_position_kp',
@@ -176,6 +177,8 @@ class JumpEnv:
     self._cycle_count = torch.zeros(self._num_envs, device=self._device)
     self._jumping_distance = torch.zeros((self._num_envs, 2),
                                          device=self._device)
+    self.command = torch.zeros((self._num_envs, 3), device=self._device)  # [vx, vy, yaw_rate]
+
     self._resample_command(torch.arange(self._num_envs, device=self._device))
 
     self._rewards = go1_rewards.Go1Rewards(self)
@@ -334,7 +337,23 @@ class JumpEnv:
       self._robot.reset_idx(env_ids)
       self._swing_leg_controller.reset_idx(env_ids)
       self._gait_generator.reset_idx(env_ids)
+
+      # RESAMPLE FIRST to get the new jumping distance
       self._resample_command(env_ids)
+      
+      # THEN apply initial velocity (only happens at trajectory start)
+      time_per_cycle = 1.0 / self._gait_generator.stepping_frequency[env_ids]
+      required_velocity = self._jumping_distance[env_ids] / time_per_cycle[:, None]
+      
+      base_yaw = self._robot.base_orientation_rpy[env_ids, 2]
+      cos_yaw = torch.cos(base_yaw)
+      sin_yaw = torch.sin(base_yaw)
+      
+      velocity_world = torch.zeros((env_ids.shape[0], 3), device=self._device)
+      velocity_world[:, 0] = cos_yaw * required_velocity[:, 0] - sin_yaw * required_velocity[:, 1]
+      velocity_world[:, 1] = sin_yaw * required_velocity[:, 0] + cos_yaw * required_velocity[:, 1]
+      
+      self._robot.base_velocity_world_frame[env_ids] = velocity_world
 
     return self._obs_buf, self._privileged_obs_buf
 
@@ -369,6 +388,10 @@ class JumpEnv:
 
       if gait_action is not None:
         self._gait_generator.stepping_frequency = gait_action[:, 0]
+        # print(f"gait_action : {gait_action}")
+        # print(f"stepping_frequency: {self._gait_generator.stepping_frequency}Hz")
+      # else:
+        # print(f"stepping_frequency: {self._gait_generator.stepping_frequency}Hz")
 
       # CoM pose action
       self._torque_optimizer.desired_base_position = torch.stack(
@@ -508,6 +531,12 @@ class JumpEnv:
                                                          self._config.goal_ub,
                                                          [env_ids.shape[0], 2],
                                                          device=self._device)
+    # Map jumping_distance to velocity command (vx only)
+    jump_range = self._config.goal_ub[0] - self._config.goal_lb[0]
+    vel_range = self._config.velocity_ub - self._config.velocity_lb
+    normalized = (self._jumping_distance[env_ids, 0] - self._config.goal_lb[0]) / jump_range
+    self.command[env_ids, 0] = self._config.velocity_lb + normalized * vel_range
+    self.command[env_ids, 1:] = 0.0  # vy and yaw_rate are zero
 
     self._desired_landing_position[env_ids, :2] = self._robot.base_position[
         env_ids, :2] + gravity_frame_to_world_frame(

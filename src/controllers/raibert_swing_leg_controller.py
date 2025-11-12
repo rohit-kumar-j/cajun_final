@@ -51,6 +51,7 @@ def compute_desired_foot_positions(
     stance_duration,
     normalized_phase,
     phase_switch_foot_positions,
+    desired_velocity_world
 ):
   hip_position = torch.matmul(base_rot_mat,
                               hip_positions_in_body_frame.transpose(
@@ -67,10 +68,16 @@ def compute_desired_foot_positions(
   hip_velocity = base_velocity[:, None, :] + torch.matmul(
       base_rot_mat, hip_velocity_body_frame.transpose(1, 2)).transpose(1, 2)
 
-  land_position = hip_velocity * stance_duration[:, :, None] / 2
-  land_position[..., 0] = torch.clip(land_position[..., 0], -0.15, 0.15)
-  land_position[..., 1] = torch.clip(land_position[..., 1], -0.08, 0.08)
-  land_position += hip_position
+  velocity_feedback_gain = 0.04
+  # Raibert formula with velocity feedback: xf = (ẋ * Ts)/2 + kx(ẋ - ẋd)
+  velocity_error = base_velocity - desired_velocity_world # ADD THIS
+  land_position = (hip_velocity * stance_duration[:, :, None] / 2) + \
+                  velocity_feedback_gain * velocity_error[:, None, :]  # MODIFY THIS LINE
+
+  # land_position = (hip_velocity * stance_duration[:, :, None] / 2)  + 
+  land_position[..., 0] = torch.clip(land_position[..., 0], -0.15, 0.4)
+  land_position[..., 1] = torch.clip(land_position[..., 1], -0.18, 0.18)
+  land_position += hip_position + 0.1
   land_position[..., 2] = (-base_height[:, None] + foot_landing_clearance)
   # -land_position[..., 0] * projected_gravity[:, 0, None]
   # -land_position[..., 1] * projected_gravity[:, 1, None]
@@ -98,10 +105,12 @@ class RaibertSwingLegController:
   def __init__(self,
                robot: Any,
                gait_generator: Any,
+               env: Any = None,
                desired_base_height: float = 0.26,
                foot_landing_clearance: float = -0.,
                foot_height: float = 0.15):
     self._robot = robot
+    self._env = env
     self._device = self._robot._device
     self._num_envs = self._robot.num_envs
     self._gait_generator = gait_generator
@@ -147,8 +156,20 @@ class RaibertSwingLegController:
 
     Note: it returns an invalid position for stance legs.
     """
+    if self._env is not None:
+      command_linear = self._env.command[:, :2]  # vx, vy in body frame
+      base_yaw = self._robot.base_orientation_rpy[:, 2]
+      cos_yaw = torch.cos(base_yaw)
+      sin_yaw = torch.sin(base_yaw)
+
+      desired_velocity_world = torch.zeros((self._num_envs, 3), device=self._device)
+      desired_velocity_world[:, 0] = cos_yaw * command_linear[:, 0] - sin_yaw * command_linear[:, 1]
+      desired_velocity_world[:, 1] = sin_yaw * command_linear[:, 0] + cos_yaw * command_linear[:, 1]
+    else:
+      desired_velocity_world = torch.zeros((self._num_envs, 3), device=self._device)
+
     return compute_desired_foot_positions(
-        self._robot.base_rot_mat,
+      self._robot.base_rot_mat,
         self._robot.base_position[:, 2],
         self._robot.hip_positions_in_body_frame,
         self._robot.base_velocity_world_frame,
@@ -160,4 +181,5 @@ class RaibertSwingLegController:
         self._gait_generator.stance_duration,
         self._gait_generator.normalized_phase,
         self._phase_switch_foot_positions,
+        desired_velocity_world
     )

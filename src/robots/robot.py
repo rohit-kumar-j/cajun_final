@@ -282,7 +282,8 @@ class Robot:
         sys.exit()
 
       mean_pos = torch.min(self.base_position_world,
-                           dim=0)[0].cpu().numpy() + np.array([-2.5, -2.5, 2.5])
+                           # dim=0)[0].cpu().numpy() + np.array([-2.5, -2.5, 2.5])
+                           dim=0)[0].cpu().numpy() + np.array([0., -2.0, 0.2])
       # mean_pos = torch.min(self.base_position_world,
       #                      dim=0)[0].cpu().numpy() + np.array([0.5, -1., 0.])
       target_pos = torch.mean(self.base_position_world,
@@ -313,6 +314,13 @@ class Robot:
     return base_position
 
   @property
+  def mass(self):
+    # Get mass for the first environment (all envs have same robot)
+    body_props = self._gym.get_actor_rigid_body_properties(self._envs[0], self._actors[0])
+    total_mass = sum([prop.mass for prop in body_props])
+    return total_mass
+
+  @property
   def base_position_world(self):
     return self._root_states[:, :3]
 
@@ -340,6 +348,10 @@ class Robot:
   @property
   def base_velocity_world_frame(self):
     return self._base_lin_vel_world
+
+  @property
+  def base_vel(self):
+    return torch.clone(self._base_lin_vel_world)
 
   @property
   def base_velocity_body_frame(self):

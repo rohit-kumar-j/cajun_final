@@ -21,6 +21,12 @@ class Go1Rewards:
   def forward_speed_reward(self):
     return self._robot.base_velocity_body_frame[:, 0]
 
+  def target_speed_reward(self):
+    """Reward for tracking a target forward speed."""
+    target_speed = self._env._config.get('target_speed', 0.0)
+    actual_speed = self._robot.base_velocity_body_frame[:, 0]
+    return -torch.square(target_speed - actual_speed)
+
   def upright_reward(self):
     return self._robot.projected_gravity[:, 2]
 
