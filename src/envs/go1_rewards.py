@@ -16,7 +16,12 @@ class Go1Rewards:
         (self._robot.base_velocity_body_frame[:, :2],
          self._robot.base_angular_velocity_body_frame[:, 2:]),
         dim=1)
-    return -torch.sum(torch.square(self._env.command - actual_speed), dim=1)
+    # print(60*"=")
+    # print(f"{self._env._desired_velocity}\n shape: {self._env._desired_velocity.shape}")
+    # print(f"{actual_speed},\n shape: {actual_speed.shape}")
+    # exit()
+    # return -torch.sum(torch.square(self._env._config.gait.desired_velocity - actual_speed), dim=1)
+    return -torch.sum(torch.square(self._env._desired_velocity - actual_speed), dim=1)
 
   def forward_speed_reward(self):
     return self._robot.base_velocity_body_frame[:, 0]

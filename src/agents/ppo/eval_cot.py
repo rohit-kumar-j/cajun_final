@@ -364,11 +364,15 @@ def main(argv):
     config = yaml.load(f, Loader=yaml.Loader)
 
   with config.unlocked():
+    # FIX: TODO THIS
     #TODO: SETUP MOVING VELOCITY TARGET: 
-    # velocity_schedule = torch.linspace(0.3, 2.0, 100) # 0.3 to  2m/s
-    # config.environment.jumping_distance_schedule = velocity_schedule / config.environment.stepping_frequency
+    velocity_schedule = torch.linspace(1.25, 3.75, 20) # 0.3 to  2m/s
+    config.environment.jumping_distance_schedule = velocity_schedule / config.environment.gait.stepping_frequency
+    # config.environment.jumping_distance_schedule = None
+    config.environment.gait.desired_velocity = torch.tensor([velocity_schedule[0].item(), 0, 0])  # Start with first velocity
 
-    config.environment.jumping_distance_schedule = torch.linspace(0.3, 1.0, 100)
+
+    # config.environment.jumping_distance_schedule = torch.linspace(0.3, 1.5, 100)
     config.environment.max_jumps = 300
 
 
@@ -431,8 +435,9 @@ def main(argv):
 
   print("Starting simulation loop...")
 
+  velocity_index = 0
   with torch.inference_mode():
-    stride_x_velocities = []  #FIX: Track body-frame X velocities during stride
+    stride_x_velocities = []  #FIXED!: Track body-frame X velocities during stride
     while True:
       steps_count += 1
       action = policy(state)
@@ -502,7 +507,13 @@ def main(argv):
           #     if plotter is not None:
           #       plotter.add_cot_data(stride_velocity, stride_cot)
 
-          # FIX:Calculate COT2 for completed stride
+          # FIX: TODO THIS
+          if velocity_index < len(velocity_schedule):
+            env._desired_velocity[:, 0] = velocity_schedule[velocity_index]
+            env._desired_velocity[:, 1:] = 0
+            velocity_index += 1
+
+          # FIXED!:Calculate COT2 for completed stride
           if stride_step_count > 0:
             avg_forward_velocity = np.mean(stride_x_velocities)  # This is correct - only current stride
             stride_duration = current_time - stride_time_start

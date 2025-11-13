@@ -14,16 +14,18 @@ def get_config():
   # TODO: Desired velocity
   # Instead I want to derive desired velocity from jumping distance  
   # and stepping_frequency and apply it directly reward term!
-  # gait_config.desired_velocity = torch.tensor([2,0,0]) #m/s
+  gait_config.desired_velocity = torch.tensor([3.75,0,0]) #m/s
 
   gait_config.initial_offset = np.array([0.,0.2,.55,.75], # transverse
                                         dtype=np.float32) * (2 * np.pi)
   gait_config.swing_ratio = np.array([0.75, 0.75, 0.75, 0.75], dtype=np.float32)
   config.gait = gait_config
 
-  config.goal_lb = torch.tensor([0.3, 0.],
+  config.goal_lb = torch.tensor([0.5, 0.],
                                 dtype=torch.float)  # Lin_x, Lin_y, Rot_z
-  config.goal_ub = torch.tensor([1.0, 0.], dtype=torch.float)
+  config.goal_ub = torch.tensor([1.5, 0.], dtype=torch.float)
+  config.velocity_lb = torch.tensor([-6,-6])  
+  config.velocity_ub = torch.tensor([6,6])
 
   # Action: step_freq, height, vx, vy,  vz, roll, pitch, pitch_rate, yaw_rate
   config.include_gait_action = True
@@ -72,7 +74,7 @@ def get_config():
       ('stepping_freq', 0.008),
       ('com_distance_to_goal_squared', 0.016),
       ('com_height', 0.02),
-      # ('speed_tracking', 0.02),
+      ('speed_tracking', 0.02),
       ('forward_speed', 0.02),
   ]
   config.clip_negative_reward = False

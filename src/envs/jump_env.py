@@ -91,9 +91,27 @@ class JumpEnv:
     with self._config.unlocked():
       self._config.goal_lb = to_torch(self._config.goal_lb, device=self._device)
       self._config.goal_ub = to_torch(self._config.goal_ub, device=self._device)
+      self._config.velocity_lb = to_torch(self._config.velocity_lb, device=self._device)
+      self._config.velocity_ub = to_torch(self._config.velocity_ub, device=self._device)
+
       if self._config.get('observation_noise', None) is not None:
         self._config.observation_noise = to_torch(
             self._config.observation_noise, device=self._device)
+
+    # self._config.gait.desired_velocity = torch.tensor(
+    #   self._config.gait.desired_velocity, 
+    #   device=self._device, 
+    #   dtype=torch.float
+    # ).unsqueeze(0).repeat(self._num_envs, 1)
+    desired_vel = torch.tensor(
+      self._config.gait.desired_velocity, 
+      device=self._device, 
+      dtype=torch.float
+    ).unsqueeze(0).repeat(self._num_envs, 1)
+
+    # Store as a separate attribute, not in config
+    self._desired_velocity = desired_vel
+
 
     # Set up robot and controller
     use_gpu = ("cuda" in device)
@@ -234,8 +252,31 @@ class JumpEnv:
 
     task_lb = to_torch([-2., -2., -1., -1., -1.], device=self._device)
     task_ub = to_torch([2., 2., 1., 1., 1.], device=self._device)
-    self._observation_lb = torch.concatenate((task_lb, robot_lb))
-    self._observation_ub = torch.concatenate((task_ub, robot_ub))
+
+    # Add bounds for velocity command (2 dimensions: vx, vy)
+    stepping_freq = self._config.gait.stepping_frequency
+    velocity_lb = to_torch(self._config.velocity_lb, device=self._device)  
+    velocity_ub = to_torch(self._config.velocity_ub, device=self._device)
+    # velocity_lb = self._config.velocity_lb.to(self._device)
+    # velocity_ub = self._config.velocity_ub.to(self._device)
+
+    # print(f"velocity_lb  :{velocity_lb} | shape: {velocity_lb.shape}")
+    # print(f"robot_ub :{robot_ub} | shape: {robot_ub.shape}")
+    # print(f"task_lb :{task_lb} | shape: {task_lb.shape}")
+    #
+    # print("velocity_lb:", velocity_lb)
+    # print("velocity_lb.isnan().any():", velocity_lb.isnan().any())
+    # print("velocity_lb.device:", velocity_lb.device)
+    # print("velocity_lb.dtype:", velocity_lb.dtype)
+    #
+    # print(f"velocity range:, {self._config.velocity_ub} - {self._config.velocity_lb}")
+
+
+    self._observation_lb = torch.concatenate((task_lb, velocity_lb, robot_lb))
+    self._observation_ub = torch.concatenate((task_ub, velocity_ub, robot_ub))
+    # print(f"observation_lb {self._observation_lb} shape : {self._observation_lb.shape}")
+    # self._observation_lb = torch.concatenate((task_lb, robot_lb))
+    # self._observation_ub = torch.concatenate((task_ub, robot_ub))
     if self._config.get("observe_heights", False):
       num_heightpoints = len(self._config.measured_points_x) * len(
           self._config.measured_points_y)
@@ -360,7 +401,7 @@ class JumpEnv:
     for step in range(
         max(int(self._config.env_dt / self._robot.control_timestep), 1)):
       self._gait_generator.update()
-      self._swing_leg_controller.update()
+      self._swing_leg_controller.update(self._desired_velocity)
       if self._use_real_robot:
         self._robot.state_estimator.update_foot_contact(
             self._gait_generator.desired_contact_state)  # pytype: disable=attribute-error
@@ -499,15 +540,54 @@ class JumpEnv:
       self._jumping_distance = torch.tensor(
           [[next(self._jumping_distance_schedule), 0]], device=self._device)
     else:
+      ################# OLD ###########################
       # self._jumping_distance[env_ids] = torch.where(
       #     torch_rand_float(self._config.goal_lb,
       #                      self._config.goal_ub, [env_ids.shape[0], 2],
       #                      device=self._device) < 0.65, 0.3, 1.)
 
-      self._jumping_distance[env_ids] = torch_rand_float(self._config.goal_lb,
-                                                         self._config.goal_ub,
-                                                         [env_ids.shape[0], 2],
-                                                         device=self._device)
+      # self._jumping_distance[env_ids] = torch_rand_float(self._config.goal_lb,
+      #                                                    self._config.goal_ub,
+      #                                                    [env_ids.shape[0], 2],
+      #                                                    device=self._device)
+      ################# DERIVED ###########################
+
+      # if self._config.get('include_gait_action', False):
+      #   stepping_frequency = self._gait_generator.stepping_frequency[env_ids]
+      #   # For variable frequency, compute bounds per env
+      #   velocity_lb = self._config.goal_lb[0].item() * stepping_frequency
+      #   velocity_ub = self._config.goal_ub[0].item() * stepping_frequency
+      # else:
+      #   # For fixed frequency, use scalar
+      #   stepping_frequency = self._config.gait.stepping_frequency
+      #   velocity_lb = self._config.goal_lb[0].item() * stepping_frequency
+      #   velocity_ub = self._config.goal_ub[0].item() * stepping_frequency
+      #   
+      # # Sample velocities
+      # sampled_velocities = torch_rand_float(velocity_lb, velocity_ub, 
+      #                                        [env_ids.shape[0]], 
+      #                                        device=self._device)
+      #
+      # # Update desired velocity for these envs
+      # self._desired_velocity[env_ids, 0] = sampled_velocities
+      # self._desired_velocity[env_ids, 1:] = 0
+      #
+      # # Derive jumping distance from velocity
+      # self._jumping_distance[env_ids, 0] = sampled_velocities / stepping_frequency
+      # self._jumping_distance[env_ids, 1] = 0  # No lateral jumping
+      #
+      ################# BOTH ARE RANDOMLY_SAMPLED ###########################
+      # Sample both independently
+      sampled_velocities = torch_rand_float(0.3, 2.0, [env_ids.shape[0]], device=self._device)
+      self._desired_velocity[env_ids, 0] = sampled_velocities
+      self._desired_velocity[env_ids, 1:] = 0
+
+      # Still sample jumping distance randomly as before
+      self._jumping_distance[env_ids] = torch_rand_float(
+        self._config.goal_lb, self._config.goal_ub, 
+        [env_ids.shape[0], 2], device=self._device
+      )
+
 
     self._desired_landing_position[env_ids, :2] = self._robot.base_position[
         env_ids, :2] + gravity_frame_to_world_frame(
@@ -525,6 +605,8 @@ class JumpEnv:
         torch.sin(self._gait_generator.true_phase),
     ),
                             dim=1)
+
+    velocity_command = self._desired_velocity[:, :2]
 
     robot_obs = torch.concatenate(
         (
@@ -544,11 +626,14 @@ class JumpEnv:
                 (self._num_envs, 12)),
         ),
         dim=1)
-    obs = torch.concatenate((distance_to_goal_local, phase_obs, robot_obs),
+    # obs = torch.concatenate((distance_to_goal_local, phase_obs, velocity_command, robot_obs),
+    obs = torch.concatenate((distance_to_goal_local, phase_obs, velocity_command, robot_obs),
                             dim=1)
     if self._config.get("observation_noise",
                         None) is not None and (not self._use_real_robot):
       obs += torch.randn_like(obs) * self._config.observation_noise
+    # print(f"obs: {obs}, shape: {obs.shape}")
+    # exit()
     return obs
 
   def get_observations(self):
