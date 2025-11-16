@@ -578,7 +578,7 @@ class JumpEnv:
       #
       ################# BOTH ARE RANDOMLY_SAMPLED ###########################
       # Sample both independently
-      sampled_velocities = torch_rand_float(0.3, 2.0, [env_ids.shape[0]], device=self._device)
+      sampled_velocities = torch_rand_float(0.3, 2.5, [env_ids.shape[0]], device=self._device)
       self._desired_velocity[env_ids, 0] = sampled_velocities
       self._desired_velocity[env_ids, 1:] = 0
 

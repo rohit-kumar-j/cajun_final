@@ -80,7 +80,7 @@ def compute_desired_foot_positions(
       base_rot_mat, desired_hip_velocity_body_frame.transpose(1, 2)).transpose(1, 2)
   
   # Now compute velocity error at each hip
-  hip_velocity_error = desired_hip_velocity - current_hip_velocity  # Shape: [4096, 4, 3]
+  hip_velocity_error = current_hip_velocity  - desired_hip_velocity # Shape: [4096, 4, 3]
 
   # print(f"desired_vel: {desired_vel}")
 
@@ -89,7 +89,7 @@ def compute_desired_foot_positions(
 
   # print(f"(hip_velocity: shape: {hip_velocity.shape}")
   # print(f"(desired_velocity: shape: {desired_vel.shape}")
-  land_position = (hip_velocity * stance_duration[:, :, None] / 2) +  (0.005 * hip_velocity_error)
+  land_position = (hip_velocity * stance_duration[:, :, None] / 2) +  (0.4 * hip_velocity_error)
 
   land_position[..., 0] = torch.clip(land_position[..., 0], -0.35, 0.4)
   land_position[..., 1] = torch.clip(land_position[..., 1], -0.18, 0.18)

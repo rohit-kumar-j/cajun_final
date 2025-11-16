@@ -366,7 +366,7 @@ def main(argv):
   with config.unlocked():
     # FIX: TODO THIS
     #TODO: SETUP MOVING VELOCITY TARGET: 
-    velocity_schedule = torch.linspace(1.25, 3.75, 20) # 0.3 to  2m/s
+    velocity_schedule = torch.linspace(0.5, 4.0, 40) # 0.3 to  2m/s
     config.environment.jumping_distance_schedule = velocity_schedule / config.environment.gait.stepping_frequency
     # config.environment.jumping_distance_schedule = None
     config.environment.gait.desired_velocity = torch.tensor([velocity_schedule[0].item(), 0, 0])  # Start with first velocity
