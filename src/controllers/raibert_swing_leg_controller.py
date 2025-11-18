@@ -89,7 +89,7 @@ def compute_desired_foot_positions(
 
   # print(f"(hip_velocity: shape: {hip_velocity.shape}")
   # print(f"(desired_velocity: shape: {desired_vel.shape}")
-  land_position = (hip_velocity * stance_duration[:, :, None] / 2) +  (0.4 * hip_velocity_error)
+  land_position = (hip_velocity * stance_duration[:, :, None] / 2) +  (0.2 * hip_velocity_error)
 
   land_position[..., 0] = torch.clip(land_position[..., 0], -0.35, 0.4)
   land_position[..., 1] = torch.clip(land_position[..., 1], -0.18, 0.18)

@@ -24,7 +24,7 @@ def get_config():
   config.goal_lb = torch.tensor([0.5, 0.],
                                 dtype=torch.float)  # Lin_x, Lin_y, Rot_z
   config.goal_ub = torch.tensor([2.5, 0.], dtype=torch.float)
-  config.velocity_lb = torch.tensor([-6,-6])  
+  config.velocity_lb = torch.tensor([0.1,0.1])  
   config.velocity_ub = torch.tensor([6,6])
 
   # Action: step_freq, height, vx, vy,  vz, roll, pitch, pitch_rate, yaw_rate

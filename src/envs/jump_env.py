@@ -377,6 +377,12 @@ class JumpEnv:
       self._gait_generator.reset_idx(env_ids)
       self._resample_command(env_ids)
 
+      # Sample both independently
+      sampled_velocities = torch_rand_float(self._config.velocity_lb[0], self._config.velocity_ub[0], [env_ids.shape[0]], device=self._device)
+      # sampled_velocities = torch_rand_float(0.3,2.5 [env_ids.shape[0]], device=self._device)
+      self._desired_velocity[env_ids, 0] = sampled_velocities
+      self._desired_velocity[env_ids, 1:] = 0
+
     return self._obs_buf, self._privileged_obs_buf
 
   def step(self, action: torch.Tensor):
@@ -522,8 +528,8 @@ class JumpEnv:
       # import pdb
       # pdb.set_trace()
     self._resample_command(env_ids_to_resample)
-    if not self._use_real_robot:
-      self.reset_idx(dones.nonzero(as_tuple=False).flatten())
+    # if not self._use_real_robot:
+    #   self.reset_idx(dones.nonzero(as_tuple=False).flatten())
     # if dones.any():
     #   import pdb
     #   pdb.set_trace()
@@ -546,10 +552,10 @@ class JumpEnv:
       #                      self._config.goal_ub, [env_ids.shape[0], 2],
       #                      device=self._device) < 0.65, 0.3, 1.)
 
-      # self._jumping_distance[env_ids] = torch_rand_float(self._config.goal_lb,
-      #                                                    self._config.goal_ub,
-      #                                                    [env_ids.shape[0], 2],
-      #                                                    device=self._device)
+      self._jumping_distance[env_ids] = torch_rand_float(self._config.goal_lb,
+                                                         self._config.goal_ub,
+                                                         [env_ids.shape[0], 2],
+                                                         device=self._device)
       ################# DERIVED ###########################
 
       # if self._config.get('include_gait_action', False):
@@ -575,18 +581,22 @@ class JumpEnv:
       # # Derive jumping distance from velocity
       # self._jumping_distance[env_ids, 0] = sampled_velocities / stepping_frequency
       # self._jumping_distance[env_ids, 1] = 0  # No lateral jumping
-      #
+
       ################# BOTH ARE RANDOMLY_SAMPLED ###########################
       # Sample both independently
-      sampled_velocities = torch_rand_float(0.3, 2.5, [env_ids.shape[0]], device=self._device)
-      self._desired_velocity[env_ids, 0] = sampled_velocities
-      self._desired_velocity[env_ids, 1:] = 0
+      # sampled_velocities = torch_rand_float(self._config.velocity_lb[0], self._config.velocity_ub[0], [env_ids.shape[0]], device=self._device)
+      # sampled_velocities = torch_rand_float(0.3,2.5 [env_ids.shape[0]], device=self._device)
+      # self._desired_velocity[env_ids, 0] = sampled_velocities
+      # self._desired_velocity[env_ids, 1:] = 0
 
       # Still sample jumping distance randomly as before
-      self._jumping_distance[env_ids] = torch_rand_float(
-        self._config.goal_lb, self._config.goal_ub, 
-        [env_ids.shape[0], 2], device=self._device
-      )
+      # self._jumping_distance[env_ids] = torch_rand_float(
+      #   self._config.goal_lb, self._config.goal_ub, 
+      #   [env_ids.shape[0], 2], device=self._device
+      # )
+
+      #TODO:  Reset function: sample desired_vel
+
 
 
     self._desired_landing_position[env_ids, :2] = self._robot.base_position[

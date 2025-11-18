@@ -105,6 +105,7 @@ class RealtimePlotter:
     self.fig.tight_layout(pad=3.0)
 
     # Initialize empty data containers
+    self.desired_vel_data = {'x': deque(maxlen=max_points), 'y': deque(maxlen=max_points)}
     self.velocity_data = {'x': deque(maxlen=max_points), 'y': deque(maxlen=max_points)}
     self.stride_data = {'x': deque(maxlen=max_points), 'y': deque(maxlen=max_points)}
     self.stride_markers = {'x': [], 'y': []}
@@ -131,6 +132,7 @@ class RealtimePlotter:
 
     # Velocity line on primary y-axis
     self.velocity_line, = ax1.plot([], [], 'b-', linewidth=2, label='Velocity')
+    self.desired_velocity_line, = ax1.plot([], [], 'r-', linewidth=2, label='Desired Velocity')
 
     # Create secondary y-axis for stride length
     self.ax2 = ax1.twinx()
@@ -166,7 +168,7 @@ class RealtimePlotter:
     ax.set_xlim(0, 3)
     ax.set_ylim(0, 5)
 
-  def add_data(self, time_val, velocity=None, stride_length=None, is_stride_event=False):
+  def add_data(self, time_val, desired_vel=None, velocity=None, stride_length=None, is_stride_event=False):
     """
       Add data point(s) to the plots.
 
@@ -180,6 +182,10 @@ class RealtimePlotter:
     if velocity is not None:
       self.velocity_data['x'].append(time_val)
       self.velocity_data['y'].append(velocity)
+
+    if desired_vel is not None:
+      self.desired_vel_data['x'].append(time_val)
+      self.desired_vel_data['y'].append(desired_vel)
 
     # Add stride length data
     if stride_length is not None:
@@ -220,6 +226,13 @@ class RealtimePlotter:
           list(self.velocity_data['y'])
         )
         self._auto_scale_axis(ax1, self.velocity_data)
+
+      if len(self.desired_vel_data['x']) > 0:
+        self.desired_velocity_line.set_data(
+          list(self.desired_vel_data['x']), 
+          list(self.desired_vel_data['y'])
+        )
+        self._auto_scale_axis(ax1, self.desired_vel_data)
 
       # Update stride plot
       if len(self.stride_data['x']) > 0:
@@ -366,7 +379,7 @@ def main(argv):
   with config.unlocked():
     # FIX: TODO THIS
     #TODO: SETUP MOVING VELOCITY TARGET: 
-    velocity_schedule = torch.linspace(0.5, 4.0, 40) # 0.3 to  2m/s
+    velocity_schedule = torch.linspace(0.5, 4.0, 100) # 0.3 to  2m/s
     config.environment.jumping_distance_schedule = velocity_schedule / config.environment.gait.stepping_frequency
     # config.environment.jumping_distance_schedule = None
     config.environment.gait.desired_velocity = torch.tensor([velocity_schedule[0].item(), 0, 0])  # Start with first velocity
@@ -475,7 +488,7 @@ def main(argv):
         if current_contacts == foot_fall_pattern:
           is_stride_event = True
           prev_skip_time = current_time
-          print(f">>> STRIDE EVENT detected at time {current_time:.2f}s <<<")
+          # print(f">>> STRIDE EVENT detected at time {current_time:.2f}s <<<")
 
           # # Calculate COT for completed stride
           # if stride_step_count > 0:
@@ -509,9 +522,10 @@ def main(argv):
 
           # FIX: TODO THIS
           if velocity_index < len(velocity_schedule):
-            env._desired_velocity[:, 0] = velocity_schedule[velocity_index]
-            env._desired_velocity[:, 1:] = 0
-            velocity_index += 1
+              env._desired_velocity[:, 0] = velocity_schedule[velocity_index]
+              env._desired_velocity[:, 1:] = 0
+              velocity_index += 1
+          # print(f"DV: {env._desired_velocity[0]}")
 
           # FIXED!:Calculate COT2 for completed stride
           if stride_step_count > 0:
@@ -527,7 +541,7 @@ def main(argv):
               env.robot.mass
             )
 
-            print(f"Stride Velocity: {stride_velocity:.3f} m/s, COT: {stride_cot:.4f}")
+            print(f"Stride Velocity: {stride_velocity:.3f} m/s, Current Velocity: {forward_velocity:.3f} m/s, desired_velocity: {env._desired_velocity[0][0]}m/s, COT: {stride_cot:.4f}")
 
             # Optional: Filter out invalid strides (like MATLAB does with COT < 20)
             if stride_cot < 20:
@@ -548,9 +562,12 @@ def main(argv):
           stride_time_start = current_time
 
       # Update real-time plot (if enabled) - CALL EVERY STEP
+      # print(velocity, type(velocity))
+      # print(forward_velocity, type(forward_velocity))
       if plotter is not None:
         plotter.add_data(
           time_val=current_time,
+          desired_vel=env._desired_velocity[0][0],
           velocity=velocity,
           stride_length=stride_length,
           is_stride_event=is_stride_event
