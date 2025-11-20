@@ -132,13 +132,18 @@ class RealtimePlotter:
     self.velocity_line, = ax1.plot([], [], 'b-', linewidth=2, label='Velocity')
     self.desired_velocity_line, = ax1.plot([], [], 'r-', linewidth=2, label='Desired Velocity')
 
-    # Create secondary y-axis for stride length
     self.ax2 = ax1.twinx()
     self.ax2.set_ylabel('Stride Length (m)', color='g')
     self.ax2.tick_params(axis='y', labelcolor='g')
 
+    # Create secondary y-axis for stride length
+    self.ax3 = ax1.twinx()
+    self.ax3.set_ylabel('Desired Velocity (m)', color='r')
+    self.ax3.tick_params(axis='y', labelcolor='r')
+
     # Stride length line on secondary y-axis
     self.stride_line, = self.ax2.plot([], [], 'g-', linewidth=2, label='Stride Length')
+    self.stride_line, = self.ax3.plot([], [], 'r-', linewidth=2, label='Desired Velocity')
 
     # Vertical lines for stride events
     self.stride_lines = []
@@ -228,7 +233,8 @@ class RealtimePlotter:
           list(self.desired_vel_data['x']), 
           list(self.desired_vel_data['y'])
         )
-        self._auto_scale_axis(ax1, self.desired_vel_data)
+        # self._auto_scale_axis(ax1, self.desired_vel_data)
+        self._auto_scale_axis_secondary(self.ax2, self.desired_vel_data)
 
       # Update stride plot
       if len(self.stride_data['x']) > 0:
@@ -373,8 +379,6 @@ def main(argv):
     config = yaml.load(f, Loader=yaml.Loader)
 
   with config.unlocked():
-    # FIX: TODO THIS
-    #TODO: SETUP MOVING VELOCITY TARGET: 
     velocity_schedule = torch.linspace(0.5, 4.0, 100) # 0.3 to  2m/s
     config.environment.jumping_distance_schedule = velocity_schedule / config.environment.gait.stepping_frequency
     # config.environment.jumping_distance_schedule = None
@@ -540,7 +544,7 @@ def main(argv):
             print(f"Stride Velocity: {stride_velocity:.3f} m/s, Current Velocity: {forward_velocity:.3f} m/s, desired_velocity: {env._desired_velocity[0][0]}m/s, COT: {stride_cot:.4f}")
 
             # Optional: Filter out invalid strides (like MATLAB does with COT < 20)
-            if stride_cot < 20:
+            if stride_cot < 2.5:
               if cot_data_count < max_strides:
                 cot_data_arrays['velocity'][cot_data_count] = stride_velocity
                 cot_data_arrays['cot'][cot_data_count] = stride_cot
@@ -563,8 +567,8 @@ def main(argv):
       if plotter is not None:
         plotter.add_data(
           time_val=current_time,
-          desired_vel=env._desired_velocity[0][0],
-          velocity=velocity,
+          desired_vel= velocity_schedule[velocity_index],
+          velocity=velocity, #  torch.norm(env.robot.base_vel).item()
           stride_length=stride_length,
           is_stride_event=is_stride_event
         )

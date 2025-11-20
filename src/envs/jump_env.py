@@ -339,6 +339,20 @@ class JumpEnv:
 
         self._episode_sums[reward_name][env_ids] = 0
 
+      r = torch.rand(env_ids.shape[0], device=self.device)  # sample N random numbers in [0, 1)
+      desired_velocity_x = self.velocity_lb + r * (self.velocity_ub - self.velocity_lb)
+      self._desired_velocity[env_ids, 0]= desired_velocity_x
+      self._desired_velocity[env_ids, 1:] = 0
+
+      # Set correct velocity at the start of the episode for the robot with  issac gym api
+      initial_velocity = torch.zeros_like(self._desired_velocity[env_ids])
+      initial_velocity[:, 0] = desired_velocity_x  # Set initial vx
+
+      # Set a different target velocity for each env which are reset
+      # self._robot._base_init_state[env_ids, 7:10] = initial_velocity  # Linear velocity
+      # self._robot._base_init_state[env_ids, 10:13] = 0  # Angular velocity
+      # self._robot._base_init_state[env_ids, 2] += 0.05 #m #Raise the robot higher
+
       self._steps_count[env_ids] = 0
       self._cycle_count[env_ids] = 0
       self._init_yaw[env_ids] = self._robot.base_orientation_rpy[env_ids, 2]
@@ -346,12 +360,6 @@ class JumpEnv:
       self._swing_leg_controller.reset_idx(env_ids)
       self._gait_generator.reset_idx(env_ids)
       self._resample_command(env_ids)
-
-      # Set a different target velocity for each env which are reset
-      r = torch.rand(env_ids.shape[0], device=self.device)  # sample N random numbers in [0, 1)
-      desired_velocity_x = self.velocity_lb + r * (self.velocity_ub - self.velocity_lb)
-      self._desired_velocity[env_ids, 0]= desired_velocity_x
-      self._desired_velocity[env_ids, 1:] = 0
 
     return self._obs_buf, self._privileged_obs_buf
 
