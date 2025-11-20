@@ -94,6 +94,12 @@ class JumpEnv:
       if self._config.get('observation_noise', None) is not None:
         self._config.observation_noise = to_torch(
             self._config.observation_noise, device=self._device)
+#################################
+      self.velocity_lb = to_torch(self._config.velocity_lb, device=self._device)
+      self.velocity_ub = to_torch(self._config.velocity_ub, device=self._device)
+
+    self._desired_velocity = torch.zeros(self._num_envs, 3, device=self._device)
+#################################
 
     # Set up robot and controller
     use_gpu = ("cuda" in device)
@@ -191,7 +197,7 @@ class JumpEnv:
             device=self._device)
         for _ in range(3):
           self._gait_generator.update()
-          self._swing_leg_controller.update()
+          self._swing_leg_controller.update(self._desired_velocity)
           desired_foot_positions = self._swing_leg_controller.desired_foot_positions
           self._torque_optimizer.get_action(
               desired_contact_state, swing_foot_position=desired_foot_positions)
@@ -234,8 +240,13 @@ class JumpEnv:
 
     task_lb = to_torch([-2., -2., -1., -1., -1.], device=self._device)
     task_ub = to_torch([2., 2., 1., 1., 1.], device=self._device)
-    self._observation_lb = torch.concatenate((task_lb, robot_lb))
-    self._observation_ub = torch.concatenate((task_ub, robot_ub))
+
+    vel_lb = torch.full((2,), self.velocity_lb, device=self._device)
+    vel_ub = torch.full((2,), self.velocity_ub, device=self._device)
+
+    self._observation_lb = torch.concatenate((task_lb, vel_lb, robot_lb))
+    self._observation_ub = torch.concatenate((task_ub, vel_ub, robot_ub))
+
     if self._config.get("observe_heights", False):
       num_heightpoints = len(self._config.measured_points_x) * len(
           self._config.measured_points_y)
@@ -336,6 +347,12 @@ class JumpEnv:
       self._gait_generator.reset_idx(env_ids)
       self._resample_command(env_ids)
 
+      # Set a different target velocity for each env which are reset
+      r = torch.rand(env_ids.shape[0], device=self.device)  # sample N random numbers in [0, 1)
+      desired_velocity_x = self.velocity_lb + r * (self.velocity_ub - self.velocity_lb)
+      self._desired_velocity[env_ids, 0]= desired_velocity_x
+      self._desired_velocity[env_ids, 1:] = 0
+
     return self._obs_buf, self._privileged_obs_buf
 
   def step(self, action: torch.Tensor):
@@ -360,7 +377,8 @@ class JumpEnv:
     for step in range(
         max(int(self._config.env_dt / self._robot.control_timestep), 1)):
       self._gait_generator.update()
-      self._swing_leg_controller.update()
+      self._swing_leg_controller.update(self._desired_velocity)
+
       if self._use_real_robot:
         self._robot.state_estimator.update_foot_contact(
             self._gait_generator.desired_contact_state)  # pytype: disable=attribute-error
@@ -525,6 +543,7 @@ class JumpEnv:
         torch.sin(self._gait_generator.true_phase),
     ),
                             dim=1)
+    velocity_command = self._desired_velocity[:, :2]
 
     robot_obs = torch.concatenate(
         (
@@ -544,11 +563,14 @@ class JumpEnv:
                 (self._num_envs, 12)),
         ),
         dim=1)
-    obs = torch.concatenate((distance_to_goal_local, phase_obs, robot_obs),
+    obs = torch.concatenate((distance_to_goal_local, phase_obs, velocity_command, robot_obs),
                             dim=1)
     if self._config.get("observation_noise",
                         None) is not None and (not self._use_real_robot):
       obs += torch.randn_like(obs) * self._config.observation_noise
+    # print(f"obs_space:{self._observation_ub}  obs_space.shape: {self._observation_ub.shape}")
+    # print(f"obs:{obs}  obs.shape: {obs.shape}")
+
     return obs
 
   def get_observations(self):

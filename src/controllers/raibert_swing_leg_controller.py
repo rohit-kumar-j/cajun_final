@@ -51,6 +51,8 @@ def compute_desired_foot_positions(
     stance_duration,
     normalized_phase,
     phase_switch_foot_positions,
+    current_vel,
+    desired_vel,
 ):
   hip_position = torch.matmul(base_rot_mat,
                               hip_positions_in_body_frame.transpose(
@@ -64,12 +66,31 @@ def compute_desired_foot_positions(
   base_velocity = base_velocity_world_frame
   hip_velocity_body_frame = cross_quad(base_angular_velocity_body_frame,
                                        hip_positions_in_body_frame)
-  hip_velocity = base_velocity[:, None, :] + torch.matmul(
-      base_rot_mat, hip_velocity_body_frame.transpose(1, 2)).transpose(1, 2)
 
-  land_position = hip_velocity * stance_duration[:, :, None] / 2
-  land_position[..., 0] = torch.clip(land_position[..., 0], -0.15, 0.15)
-  land_position[..., 1] = torch.clip(land_position[..., 1], -0.08, 0.08)
+  current_hip_velocity = base_velocity[:, None, :] + torch.matmul(
+    base_rot_mat, hip_velocity_body_frame.transpose(1, 2)).transpose(1, 2)
+
+  # Compute DESIRED hip velocities
+  desired_angular_vel = torch.zeros_like(base_angular_velocity_body_frame)  # angular velocity needs to be zeros
+  desired_hip_velocity_body_frame = cross_quad(desired_angular_vel,
+                                               hip_positions_in_body_frame)
+  desired_hip_velocity = desired_vel[:, None, :] + torch.matmul(
+      base_rot_mat, desired_hip_velocity_body_frame.transpose(1, 2)).transpose(1, 2)
+
+  # Now compute velocity error at each hip
+  # hip_velocity_error = current_hip_velocity  - desired_hip_velocity # Shape: [4096, 4, 3]
+  # print(f"desired_vel: {desired_vel[0]}")
+  # print(f"desired_hip_velocity: {desired_hip_velocity[0]}")
+  # print(f"current_hip_velocity: {current_hip_velocity[0]}\n>>>>>>>>>>>>>>>>>\n")
+
+  # hip_velocity = base_velocity[:, None, :] + torch.matmul(
+  #     base_rot_mat, hip_velocity_body_frame.transpose(1, 2)).transpose(1, 2)
+  # land_position = hip_velocity * stance_duration[:, :, None] / 2
+
+  land_position = (current_hip_velocity * stance_duration[:, :, None] / 2) + (0.2 * (current_hip_velocity - desired_hip_velocity))
+
+  land_position[..., 0] = torch.clip(land_position[..., 0], -0.35, 0.4)
+  land_position[..., 1] = torch.clip(land_position[..., 1], -0.28, 0.28)
   land_position += hip_position
   land_position[..., 2] = (-base_height[:, None] + foot_landing_clearance)
   # -land_position[..., 0] * projected_gravity[:, 0, None]
@@ -129,7 +150,8 @@ class RaibertSwingLegController:
         self._robot.foot_positions_in_base_frame[env_ids].transpose(
             1, 2)).transpose(1, 2)
 
-  def update(self) -> None:
+  def update(self, desired_velocity) -> None:
+    self._new_desired_velocity = desired_velocity
     new_leg_state = torch.clone(self._gait_generator.desired_contact_state)
     new_foot_positions = torch.matmul(
         self._robot.base_rot_mat,
@@ -160,4 +182,6 @@ class RaibertSwingLegController:
         self._gait_generator.stance_duration,
         self._gait_generator.normalized_phase,
         self._phase_switch_foot_positions,
+        self._robot.base_vel,
+        self._new_desired_velocity
     )
