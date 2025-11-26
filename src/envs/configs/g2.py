@@ -8,7 +8,7 @@ def get_config():
   config = ConfigDict()
 
   gait_config = ConfigDict()
-  gait_config.stepping_frequency = 2
+  gait_config.stepping_frequency = 2.5
   gait_config.initial_offset = np.array([0.,0.2,.55,.75], # transverse
                                         dtype=np.float32) * (2 * np.pi)
   gait_config.swing_ratio = np.array([0.7, 0.7, 0.7, 0.7], dtype=np.float32)
@@ -17,7 +17,7 @@ def get_config():
   config.goal_lb = torch.tensor([0.3, 0.],
                                 dtype=torch.float)  # Lin_x, Lin_y, Rot_z
   config.goal_ub = torch.tensor([1.5, 0.], dtype=torch.float)
-  config.velocity_lb = 0.5 # m/s
+  config.velocity_lb = 0.3 # m/s
   config.velocity_ub = 4.0 # m/s
 
   # Action: step_freq, height, vx, vy,  vz, roll, pitch, pitch_rate, yaw_rate
