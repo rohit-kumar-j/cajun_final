@@ -1,0 +1,45 @@
+###########################
+# Transverse Galloping Gaits
+
+G0 - Transverse (No Flight)
+Offset = [0, 0.15, 0.5, 0.65]
+Swing = [0.55, 0.55, 0.55, 0.55]
+(Two mixed stance phases, no suspension)
+
+GG - Transverse (Gathered Flight)
+Offset = [0, 0.12, 0.5, 0.62]
+Swing = [0.65, 0.65, 0.65, 0.65]
+(Single flight phase with legs gathered under body)
+
+GE - Transverse (Extended Flight)
+Offset = [0, 0.18, 0.5, 0.68]
+Swing = [0.68, 0.68, 0.68, 0.68]
+(Single flight phase with legs extended)
+
+G2 - Transverse (Dual Flight)
+Offset = [0, 0.15, 0.5, 0.65]
+Swing = [0.75, 0.75, 0.75, 0.75]
+(Two flight phases)
+
+##########################
+# Rotary Galloping Gaits
+
+G0 - Rotary (No Flight)
+Offset = [0, 0.35, 0.5, 0.15]
+Swing = [0.55, 0.55, 0.55, 0.55]
+(Circular limb sequence, no suspension)
+
+GG - Rotary (Gathered Flight)
+Offset = [0, 0.38, 0.5, 0.12]
+Swing = [0.65, 0.65, 0.65, 0.65]
+(Circular sequence with gathered flight)
+
+GE - Rotary (Extended Flight)
+Offset = [0, 0.32, 0.5, 0.18]
+Swing = [0.68, 0.68, 0.68, 0.68]
+(Circular sequence with extended flight)
+
+G2 - Rotary (Dual Flight)
+Offset = [0, 0.35, 0.5, 0.15]
+Swing = [0.75, 0.75, 0.75, 0.75]
+(Circular sequence with two flights)

@@ -1,7 +1,7 @@
 """Configuration for running PPO using the Pointmass Env"""
 from ml_collections import ConfigDict
 
-from src.envs.configs import g2
+from src.envs.configs import g2_transverse
 from src.envs import jump_env
 
 
@@ -36,8 +36,8 @@ def get_training_config():
   runner_config.algorithm_class_name = "PPO"
   runner_config.num_steps_per_env = 24
   runner_config.save_interval = 50
-  runner_config.experiment_name = "g2_night"
-  runner_config.max_iterations = 2000
+  runner_config.experiment_name = "g2_transverse_night"
+  runner_config.max_iterations = 8000
   # runner_config.resume = False
   # runner_config.load_run = -1
   # runner_config.checkpoint = -1
@@ -50,5 +50,5 @@ def get_config():
   config = ConfigDict()
   config.training = get_training_config()
   config.env_class = jump_env.JumpEnv
-  config.environment = g2.get_config()
+  config.environment = g2_transverse.get_config()
   return config
