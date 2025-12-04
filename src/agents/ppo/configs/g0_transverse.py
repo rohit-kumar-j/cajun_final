@@ -35,7 +35,7 @@ def get_training_config():
   runner_config.policy_class_name = "ActorCritic"
   runner_config.algorithm_class_name = "PPO"
   runner_config.num_steps_per_env = 24
-  runner_config.save_interval = 50
+  runner_config.save_interval = 500
   runner_config.experiment_name = "g0_transverse_night"
   runner_config.max_iterations = 8000
   # runner_config.resume = False
