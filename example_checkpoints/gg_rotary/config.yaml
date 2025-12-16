@@ -148,7 +148,7 @@ _fields:
               - 0
             - false
             - !!binary |
-              AAAAAJzOGEDbD0lAvcOQPw==
+              AAAAAHzZoD+k4aZATL6MQA==
           stepping_frequency: 2.5
           swing_ratio: !!python/object/apply:numpy.core.multiarray._reconstruct
             args:
@@ -164,7 +164,7 @@ _fields:
             - *id003
             - false
             - !!binary |
-              ZmYmP2ZmJj9mZiY/ZmYmPw==
+              AABAPwAAQD8AAEA/AABAPw==
         _locked: true
         _type_safe: true
       goal_lb: !!python/object/apply:torch._utils._rebuild_tensor_v2
@@ -173,8 +173,8 @@ _fields:
           gAKKCmz8nEb5IGqoUBkugAJN6QMugAJ9cQAoWBAAAABwcm90b2NvbF92ZXJzaW9ucQFN6QNYDQAA
           AGxpdHRsZV9lbmRpYW5xAohYCgAAAHR5cGVfc2l6ZXNxA31xBChYBQAAAHNob3J0cQVLAlgDAAAA
           aW50cQZLBFgEAAAAbG9uZ3EHSwR1dS6AAihYBwAAAHN0b3JhZ2VxAGN0b3JjaApGbG9hdFN0b3Jh
-          Z2UKcQFYDgAAADk0MTI3MTI2Nzg5ODA4cQJYAwAAAGNwdXEDSwJOdHEEUS6AAl1xAFgOAAAAOTQx
-          MjcxMjY3ODk4MDhxAWEuAgAAAAAAAACamZk+AAAAAA==
+          Z2UKcQFYDwAAADEwNjk5MDQ0Njg0MjY0MHECWAMAAABjcHVxA0sCTnRxBFEugAJdcQBYDwAAADEw
+          Njk5MDQ0Njg0MjY0MHEBYS4CAAAAAAAAAJqZmT4AAAAA
       - 0
       - !!python/tuple
         - 2
@@ -189,8 +189,8 @@ _fields:
           gAKKCmz8nEb5IGqoUBkugAJN6QMugAJ9cQAoWBAAAABwcm90b2NvbF92ZXJzaW9ucQFN6QNYDQAA
           AGxpdHRsZV9lbmRpYW5xAohYCgAAAHR5cGVfc2l6ZXNxA31xBChYBQAAAHNob3J0cQVLAlgDAAAA
           aW50cQZLBFgEAAAAbG9uZ3EHSwR1dS6AAihYBwAAAHN0b3JhZ2VxAGN0b3JjaApGbG9hdFN0b3Jh
-          Z2UKcQFYDgAAADk0MTI3MTI3NDMwNDk2cQJYAwAAAGNwdXEDSwJOdHEEUS6AAl1xAFgOAAAAOTQx
-          MjcxMjc0MzA0OTZxAWEuAgAAAAAAAAAAAMA/AAAAAA==
+          Z2UKcQFYDwAAADEwNjk5MDQ0NTY4NjA2NHECWAMAAABjcHVxA0sCTnRxBFEugAJdcQBYDwAAADEw
+          Njk5MDQ0NTY4NjA2NHEBYS4CAAAAAAAAAAAAwD8AAAAA
       - 0
       - !!python/tuple
         - 2
@@ -327,7 +327,7 @@ _fields:
           max_iterations: 8000
           num_steps_per_env: 24
           policy_class_name: ActorCritic
-          save_interval: 50
+          save_interval: 500
         _locked: true
         _type_safe: true
       seed: 1

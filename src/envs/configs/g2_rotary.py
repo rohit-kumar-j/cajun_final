@@ -9,9 +9,9 @@ def get_config():
 
   gait_config = ConfigDict()
   gait_config.stepping_frequency = 2.5
-  gait_config.initial_offset = np.array([0.,0.35,.5,.15],
+  gait_config.initial_offset = np.array([0.,0.1,.57,.47],
                                         dtype=np.float32) * (2 * np.pi)
-  gait_config.swing_ratio = np.array([0.75, 0.75, 0.75, 0.75], dtype=np.float32)
+  gait_config.swing_ratio = np.array([0.8, 0.8, 0.8, 0.8], dtype=np.float32)
   config.gait = gait_config
 
   config.goal_lb = torch.tensor([0.3, 0.],

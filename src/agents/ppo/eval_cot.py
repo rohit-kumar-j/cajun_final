@@ -380,8 +380,9 @@ def main(argv):
 
   with config.unlocked():
     velocity_up = torch.linspace(0.5, 4.0, 50) 
-    velocity_down = torch.linspace(4.0, 0.5, 50)
-    velocity_schedule = torch.cat([velocity_up, velocity_down], dim=0)
+    # velocity_down = torch.linspace(4.0, 0.5, 50)
+    # velocity_schedule = torch.cat([velocity_up, velocity_down], dim=0)
+    velocity_schedule = velocity_up
     config.environment.jumping_distance_schedule = velocity_schedule / config.environment.gait.stepping_frequency
     # config.environment.jumping_distance_schedule = None
     config.environment.gait.desired_velocity = torch.tensor([velocity_schedule[0].item(), 0, 0])  # Start with first velocity
@@ -567,20 +568,30 @@ def main(argv):
       # print(velocity, type(velocity))
       # print(forward_velocity, type(forward_velocity))
       if plotter is not None:
-        plotter.add_data(
-          time_val=current_time,
-          desired_vel= velocity_schedule[velocity_index],
-          velocity=velocity, #  torch.norm(env.robot.base_vel).item()
-          stride_length=stride_length,
-          is_stride_event=is_stride_event
-        )
-
-      total_reward += reward
-      logs.extend(info["logs"])
-
-      if done.any():
-        print(info["episode"])
-        # break
+        try:
+            plotter.add_data(
+              time_val=current_time,
+              desired_vel= velocity_schedule[velocity_index],
+              velocity=velocity, #  torch.norm(env.robot.base_vel).item()
+              stride_length=stride_length,
+              is_stride_event=is_stride_event
+            )
+        except:
+                    #################
+            cot_output_path = os.path.join(root_path, f"cot_data_{datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}.csv")
+            # Stack arrays and save (most efficient for numpy)
+            data_to_save = np.column_stack([
+              cot_data_arrays['velocity'][:cot_data_count],
+              cot_data_arrays['cot'][:cot_data_count],
+              # cot_data_arrays['time'][:cot_data_count],
+              # cot_data_arrays['stride_length'][:cot_data_count]
+            ])
+            np.savetxt(cot_output_path, data_to_save, 
+                       delimiter=',', 
+                       header='velocity,cot',#,time,stride_length',
+                       comments='',
+                       fmt='%.6f')
+                    #################
 
   end_time = time.time()
   elapsed = end_time - start_time
