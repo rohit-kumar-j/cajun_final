@@ -121,6 +121,7 @@ _fields:
       gait: !!python/object:ml_collections.config_dict.config_dict.ConfigDict
         _convert_dict: true
         _fields:
+          gait_name: g2_transverse
           initial_offset: !!python/object/apply:numpy.core.multiarray._reconstruct
             args:
             - *id001

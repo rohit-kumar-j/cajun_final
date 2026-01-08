@@ -8,6 +8,7 @@ def get_config():
   config = ConfigDict()
 
   gait_config = ConfigDict()
+  gait_config.gait_name = "g2_transverse"
   gait_config.stepping_frequency = 2.5
   gait_config.initial_offset = np.array([0.,0.15,.5,.65], # transverse
                                         dtype=np.float32) * (2 * np.pi)
@@ -27,8 +28,10 @@ def get_config():
 
   # Fully Flexible
   config.action_lb = np.array(
-      [0.5, -0.001, -3, -0.001, -3., -0.001, -0.001, -2.5, -0.001] +
+      [0.5,  -0.001,  -3,     -0.001, -3., -0.001,   -0.001,    -2.5,           -0.001      ] +
+    # [Hz,   Des z,   Vx,     Vy,     Vz,  Des Roll, Des Pitch, Des Pitch rate, Des Yaw Rate]
       [-0.1, -0.0001, -0.001] * 4)
+    # [ Px,   Py,     Pz    ] (foot positions)
   config.action_ub = np.array(
       [3.999, 0.001, 3, 0.001, 3., 0.001, 0.001, 2.5, 0.001] +
       [0.1, 0.0001, 0.2] * 4)

@@ -230,7 +230,8 @@ class JumpEnv:
     return to_torch(init_positions, device=self._device)
 
   def _construct_observation_and_action_space(self):
-    robot_lb = to_torch(
+    # These are joint limits it seems
+    robot_lb = to_torch( 
         [0., -3.14, -3.14, -4., -4., -10., -3.14, -3.14, -3.14] +
         [-0.5, -0.5, -0.4] * 4,
         device=self._device)
@@ -449,10 +450,7 @@ class JumpEnv:
                motor_action=motor_action,
                motor_torques=self._robot.motor_torques,
                num_clips=self._num_clips,
-               foot_contact_state=self._gait_generator.desired_contact_state,
-               foot_contact_force=self._robot.foot_contact_forces,
-               desired_swing_foot_position=desired_foot_positions,
-               desired_acc_body_frame=self._desired_acc,
+               foot_contact_state=self._gait_generator.desired_contact_state, foot_contact_force=self._robot.foot_contact_forces, desired_swing_foot_position=desired_foot_positions, desired_acc_body_frame=self._desired_acc,
                solved_acc_body_frame=self._solved_acc,
                foot_positions_in_base_frame=self._robot.
                foot_positions_in_base_frame,

@@ -53,6 +53,7 @@ def compute_desired_foot_positions(
     phase_switch_foot_positions,
     current_vel,
     desired_vel,
+    raibert_kp
 ):
   hip_position = torch.matmul(base_rot_mat,
                               hip_positions_in_body_frame.transpose(
@@ -87,7 +88,7 @@ def compute_desired_foot_positions(
   #     base_rot_mat, hip_velocity_body_frame.transpose(1, 2)).transpose(1, 2)
   # land_position = hip_velocity * stance_duration[:, :, None] / 2
 
-  land_position = (current_hip_velocity * stance_duration[:, :, None] / 2) + (0.4 * (current_hip_velocity - desired_hip_velocity))
+  land_position = (current_hip_velocity * stance_duration[:, :, None] / 2) + (raibert_kp * (current_hip_velocity - desired_hip_velocity))
 
   # land_position[..., 0] = torch.clip(land_position[..., 0], -0.35, 0.6)
   # land_position[..., 1] = torch.clip(land_position[..., 1], -0.3, 0.3)
@@ -183,5 +184,6 @@ class RaibertSwingLegController:
         self._gait_generator.normalized_phase,
         self._phase_switch_foot_positions,
         self._robot.base_vel,
-        self._new_desired_velocity
+        self._new_desired_velocity,
+        self._raibert_kp
     )

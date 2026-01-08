@@ -34,15 +34,9 @@ def calculate_cot_per_stride2(joint_torques, joint_velocities, dt, x_vel_body_av
     # Use the average body-frame forward velocity
     velocity = x_vel_body_avg
     distance = velocity * stride_duration
-
-    # Calculate mechanical work
     joint_work = np.sum(joint_torques * joint_velocities * dt, axis=1)
     mechanical_work = np.sum(np.abs(joint_work))
-
-    # Calculate gravitational work
     gravitational_work = robot_mass * g * np.abs(distance)
-
-    # COT = mechanical work / gravitational work
     cot = mechanical_work / gravitational_work
 
     return velocity, cot
@@ -99,7 +93,7 @@ class RealtimePlotter:
 
     # Create figure with subplots
     plt.ion()  # Interactive mode
-    self.fig, self.axes = plt.subplots(2, 1, figsize=(12, 8))
+    self.fig, self.axes = plt.subplots(2, 2, figsize=(14, 10))
     self.fig.tight_layout(pad=3.0)
 
     # Initialize empty data containers
@@ -114,6 +108,8 @@ class RealtimePlotter:
     # Setup plots
     self._setup_combined_plot()
     self._setup_cot_plot()
+    self._setup_gait_pattern_plot(initial_offset, swing_ratio)
+    # TODO: self._setup_realtime_contacts_plot()
 
     # Draw initial canvas
     self.fig.canvas.draw()
@@ -170,6 +166,37 @@ class RealtimePlotter:
     ax.legend(loc='upper right')
     ax.set_xlim(0, 3)
     ax.set_ylim(0, 5)
+
+    def _setup_gait_pattern_plot(self, initial_offset=None, swing_ratio=None):
+        """Setup gait pattern visualization."""
+        ax = self.axes[1, 0]  # Bottom-left
+        ax.set_xlabel('Phase (normalized)')
+        ax.set_ylabel('Leg')
+        ax.set_title('Expected Gait Pattern')
+        ax.set_xlim(0, 1)
+        ax.set_ylim(-0.5, 3.5)
+        ax.set_yticks([0, 1, 2, 3])
+        ax.set_yticklabels(['Rear Left', 'Front Left', 'Front Right', 'Rear Right'])
+        ax.grid(True, alpha=0.3, axis='x')
+
+        if initial_offset is None:
+            initial_offset = [0, 0.5, 0.5, 0]
+        if swing_ratio is None:
+            swing_ratio = [0.4, 0.4, 0.4, 0.4]
+
+        bar_height = 0.6
+        for i, (offset, swing) in enumerate(zip(initial_offset, swing_ratio)):
+            stance_duration = 1 - swing
+            stance_start = offset
+
+            if stance_start + stance_duration <= 1.0:
+                ax.barh(i, stance_duration, left=stance_start, height=bar_height,
+                       color='#4BACC6', edgecolor='black', linewidth=0.5)
+            else:
+                ax.barh(i, 1.0 - stance_start, left=stance_start, height=bar_height,
+                       color='#4BACC6', edgecolor='black', linewidth=0.5)
+                ax.barh(i, (stance_start + stance_duration) - 1.0, left=0, height=bar_height,
+                       color='#4BACC6', edgecolor='black', linewidth=0.5)
 
   def add_data(self, time_val, desired_vel=None, velocity=None, stride_length=None, is_stride_event=False):
     """
@@ -379,7 +406,7 @@ def main(argv):
     config = yaml.load(f, Loader=yaml.Loader)
 
   with config.unlocked():
-    velocity_up = torch.linspace(0.5, 4.0, 50) 
+    velocity_up = torch.linspace(0.5, 4.0, 200) 
     # velocity_down = torch.linspace(4.0, 0.5, 50)
     # velocity_schedule = torch.cat([velocity_up, velocity_down], dim=0)
     velocity_schedule = velocity_up
@@ -389,8 +416,7 @@ def main(argv):
 
 
     # config.environment.jumping_distance_schedule = torch.linspace(0.3, 1.5, 100)
-    config.environment.max_jumps = 300
-
+    config.environment.max_jumps = 3000
 
   env = config.env_class(num_envs=FLAGS.num_envs,
                          device=device,
@@ -418,7 +444,7 @@ def main(argv):
 
   # Initialize plotter
   plotter = None
-  max_strides = 1000
+  max_strides = 10000
   cot_data_arrays = {
     'velocity': np.zeros(max_strides, dtype=np.float32),
     'cot': np.zeros(max_strides, dtype=np.float32),
@@ -429,13 +455,13 @@ def main(argv):
 
   if FLAGS.enable_plotting:
     plotter = RealtimePlotter(
-      max_points=2000, 
+      max_points=10000, 
       update_interval=FLAGS.plot_update_interval
     )
     print(f"Real-time plotting enabled (update every {FLAGS.plot_update_interval}s)")
 
   # Stride detection parameters
-  foot_fall_pattern = [False, False, True, True]
+  foot_fall_pattern = [False, False, True, True] #TODO: Fix stride detetction
   time_to_skip = 0.2  # Debounce time
   prev_skip_time = 0
 
@@ -463,6 +489,7 @@ def main(argv):
       current_time = env.robot.time_since_reset.item()
       velocity = torch.norm(env.robot.base_vel).item()
       current_contacts = env.robot.foot_contacts[0].tolist()
+      print(f"foot contacts: {current_contacts}")
 
       # Get body-frame velocity (forward velocity in robot's X-axis)
       body_frame_velocity = env.robot.base_velocity_body_frame[0]  # Shape: (3,)
@@ -577,21 +604,22 @@ def main(argv):
               is_stride_event=is_stride_event
             )
         except:
-                    #################
-            cot_output_path = os.path.join(root_path, f"cot_data_{datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}.csv")
-            # Stack arrays and save (most efficient for numpy)
-            data_to_save = np.column_stack([
-              cot_data_arrays['velocity'][:cot_data_count],
-              cot_data_arrays['cot'][:cot_data_count],
-              # cot_data_arrays['time'][:cot_data_count],
-              # cot_data_arrays['stride_length'][:cot_data_count]
-            ])
-            np.savetxt(cot_output_path, data_to_save, 
-                       delimiter=',', 
-                       header='velocity,cot',#,time,stride_length',
-                       comments='',
-                       fmt='%.6f')
-                    #################
+            pass
+            #         #################
+            # cot_output_path = os.path.join(root_path, f"cot_data_{datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}.csv")
+            # # Stack arrays and save (most efficient for numpy)
+            # data_to_save = np.column_stack([
+            #   cot_data_arrays['velocity'][:cot_data_count],
+            #   cot_data_arrays['cot'][:cot_data_count],
+            #   # cot_data_arrays['time'][:cot_data_count],
+            #   # cot_data_arrays['stride_length'][:cot_data_count]
+            # ])
+            # np.savetxt(cot_output_path, data_to_save, 
+            #            delimiter=',', 
+            #            header='velocity,cot',#,time,stride_length',
+            #            comments='',
+            #            fmt='%.6f')
+            #         #################
 
   end_time = time.time()
   elapsed = end_time - start_time

@@ -8,6 +8,7 @@ def get_config():
   config = ConfigDict()
 
   gait_config = ConfigDict()
+  gait_config.gait_name = "ge_rotary"
   gait_config.stepping_frequency = 2.5
   gait_config.initial_offset = np.array([0.,0.15,.55,.35],
                                         dtype=np.float32) * (2 * np.pi)
