@@ -122,7 +122,8 @@ class RaibertSwingLegController:
                gait_generator: Any,
                desired_base_height: float = 0.26,
                foot_landing_clearance: float = -0.,
-               foot_height: float = 0.15):
+               foot_height: float = 0.15,
+               default_raibert_kp: float = 0.4):
     self._robot = robot
     self._device = self._robot._device
     self._num_envs = self._robot.num_envs
@@ -132,7 +133,20 @@ class RaibertSwingLegController:
     self._desired_base_height = desired_base_height
     self._foot_height = foot_height
     self._phase_switch_foot_positions = None
+
+    # Initialize single raibert_kp per environment
+    self._raibert_kp = torch.full((self._num_envs, 1, 1), default_raibert_kp, device=self._device)
+    self._alpha = torch.ones((self._num_envs, 1), device=self._device)
+
     self.reset()
+
+  def set_kp_alpha(self, alpha: torch.Tensor) -> None:
+    """Update alpha from neural network output.
+    
+    Args:
+        alpha: Tensor of shape (num_envs, 1) from NN output
+    """
+    self._alpha = alpha
 
   def reset(self) -> None:
     self._last_leg_state = torch.clone(
@@ -153,6 +167,28 @@ class RaibertSwingLegController:
 
   def update(self, desired_velocity) -> None:
     self._new_desired_velocity = desired_velocity
+
+    # Compute current velocity magnitude
+    current_velocity_mag = torch.norm(self._robot.base_velocity_world_frame, dim=-1, keepdim=True)
+    
+    # Add small epsilon to avoid log(0)
+    epsilon = 1e-6
+    current_velocity_mag = torch.clamp(current_velocity_mag, min=epsilon)
+    
+    # Compute single raibert_kp per environment using alpha * log(velocity)
+    self._raibert_kp = torch.clamp(
+        self._alpha * torch.log(current_velocity_mag + 1.0),  # Shape: (num_envs, 1)
+        min=0.3,
+        max=0.6
+    ).unsqueeze(-1)  # Shape: (num_envs, 1, 1) for broadcasting
+                # Debug print here (outside JIT compilation)
+    # if self._num_envs <= 20:  # Only print for small number of envs
+    #     print(f"raibert_kp: {self._raibert_kp.squeeze()}")
+    # else:
+    #     print(f"raibert_kp stats - Min: {self._raibert_kp.min():.4f}, "
+    #           f"Max: {self._raibert_kp.max():.4f}, "
+    #           f"Mean: {self._raibert_kp.mean():.4f}")
+
     new_leg_state = torch.clone(self._gait_generator.desired_contact_state)
     new_foot_positions = torch.matmul(
         self._robot.base_rot_mat,

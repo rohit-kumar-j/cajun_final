@@ -230,35 +230,48 @@ class JumpEnv:
     return to_torch(init_positions, device=self._device)
 
   def _construct_observation_and_action_space(self):
-    # These are joint limits it seems
-    robot_lb = to_torch( 
-        [0., -3.14, -3.14, -4., -4., -10., -3.14, -3.14, -3.14] +
-        [-0.5, -0.5, -0.4] * 4,
-        device=self._device)
-    robot_ub = to_torch([0.6, 3.14, 3.14, 4., 4., 10., 3.14, 3.14, 3.14] +
-                        [0.5, 0.5, 0.] * 4,
-                        device=self._device)
+      # These are joint limits it seems
+      robot_lb = to_torch( 
+          [0., -3.14, -3.14, -4., -4., -10., -3.14, -3.14, -3.14] +
+          [-0.5, -0.5, -0.4] * 4,
+          device=self._device)
+      robot_ub = to_torch([0.6, 3.14, 3.14, 4., 4., 10., 3.14, 3.14, 3.14] +
+                          [0.5, 0.5, 0.] * 4,
+                          device=self._device)
 
-    task_lb = to_torch([-2., -2., -1., -1., -1.], device=self._device)
-    task_ub = to_torch([2., 2., 1., 1., 1.], device=self._device)
+      task_lb = to_torch([-2., -2., -1., -1., -1.], device=self._device)
+      task_ub = to_torch([2., 2., 1., 1., 1.], device=self._device)
 
-    vel_lb = torch.full((2,), self.velocity_lb, device=self._device)
-    vel_ub = torch.full((2,), self.velocity_ub, device=self._device)
+      vel_lb = torch.full((2,), self.velocity_lb, device=self._device)
+      vel_ub = torch.full((2,), self.velocity_ub, device=self._device)
 
-    self._observation_lb = torch.concatenate((task_lb, vel_lb, robot_lb))
-    self._observation_ub = torch.concatenate((task_ub, vel_ub, robot_ub))
+      self._observation_lb = torch.concatenate((task_lb, vel_lb, robot_lb))
+      self._observation_ub = torch.concatenate((task_ub, vel_ub, robot_ub))
 
-    if self._config.get("observe_heights", False):
-      num_heightpoints = len(self._config.measured_points_x) * len(
-          self._config.measured_points_y)
-      self._observation_lb = torch.concatenate(
-          (self._observation_lb,
-           torch.zeros(num_heightpoints, device=self._device) - 3))
-      self._observation_ub = torch.concatenate(
-          (self._observation_ub,
-           torch.zeros(num_heightpoints, device=self._device) + 3))
-    self._action_lb = to_torch(self._config.action_lb, device=self._device)
-    self._action_ub = to_torch(self._config.action_ub, device=self._device)
+      if self._config.get("observe_heights", False):
+          num_heightpoints = len(self._config.measured_points_x) * len(
+              self._config.measured_points_y)
+          self._observation_lb = torch.concatenate(
+              (self._observation_lb,
+               torch.zeros(num_heightpoints, device=self._device) - 3))
+          self._observation_ub = torch.concatenate(
+              (self._observation_ub,
+               torch.zeros(num_heightpoints, device=self._device) + 3))
+      
+      # Handle action bounds
+      if self._config.get('learn_raibert_alpha', False):
+          # Add alpha bounds (will output values that get transformed to kp)
+          base_action_lb = to_torch(self._config.action_lb, device=self._device)
+          base_action_ub = to_torch(self._config.action_ub, device=self._device)
+          
+          alpha_lb = torch.tensor([0.5], device=self._device)  # Min alpha
+          alpha_ub = torch.tensor([2.0], device=self._device)  # Max alpha
+          
+          self._action_lb = torch.concatenate([base_action_lb, alpha_lb])
+          self._action_ub = torch.concatenate([base_action_ub, alpha_ub])
+      else:
+          self._action_lb = to_torch(self._config.action_lb, device=self._device)
+          self._action_ub = to_torch(self._config.action_ub, device=self._device)
 
   def _prepare_rewards(self):
     self._reward_names, self._reward_fns, self._reward_scales = [], [], []
@@ -282,6 +295,11 @@ class JumpEnv:
     return self.reset_idx(torch.arange(self._num_envs, device=self._device))
 
   def _split_action(self, action):
+    alpha = None
+    if self._config.get('learn_raibert_alpha', False):
+        alpha = action[:, -1:]  # Last element is alpha
+        action = action[:, :-1]  # Remove alpha from main action
+
     gait_action = None
     if self._config.get('include_gait_action', False):
       gait_action = action[:, :1]
@@ -306,7 +324,7 @@ class JumpEnv:
         action = action[:, :-12]
 
     com_action = action
-    return gait_action, com_action, foot_action
+    return gait_action, com_action, foot_action, alpha
 
   def reset_idx(self, env_ids) -> torch.Tensor:
     # Aggregate rewards
@@ -373,7 +391,11 @@ class JumpEnv:
     logs = []
 
     zero = torch.zeros(self._num_envs, device=self._device)
-    gait_action, com_action, foot_action = self._split_action(action)
+    gait_action, com_action, foot_action, alpha = self._split_action(action)
+
+    if alpha is not None:
+        self._swing_leg_controller.set_kp_alpha(alpha)
+
     desired_linear_vel_z = (com_action[:, 2] -
                             self._torque_optimizer.desired_base_position[:, 2]
                            ) / self._config.env_dt

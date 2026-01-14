@@ -15,12 +15,13 @@ def get_config():
 
   gait_config.swing_ratio = np.array([0.8, 0.8, 0.8, 0.8], dtype=np.float32)
   config.gait = gait_config
+  config.learn_raibert_alpha = True
 
   config.goal_lb = torch.tensor([0.3, 0.],
                                 dtype=torch.float)  # Lin_x, Lin_y, Rot_z
   config.goal_ub = torch.tensor([1.5, 0.], dtype=torch.float)
   config.velocity_lb = 0.3 # m/s
-  config.velocity_ub = 4.0 # m/s
+  config.velocity_ub = 6.0 # m/s
 
   # Action: step_freq, height, vx, vy,  vz, roll, pitch, pitch_rate, yaw_rate
   config.include_gait_action = True
@@ -40,6 +41,7 @@ def get_config():
   config.env_dt = 0.01
   config.motor_strength_ratios = 1.
   config.motor_torque_delay_steps = 5
+  # config.rse_yaw_feedback = pose.r # same orn
   config.use_yaw_feedback = True
   config.foot_friction = 1.  #0.7
   config.base_position_kp = np.array([0., 0., 0.])
