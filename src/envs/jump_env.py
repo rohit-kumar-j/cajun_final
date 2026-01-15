@@ -295,36 +295,35 @@ class JumpEnv:
     return self.reset_idx(torch.arange(self._num_envs, device=self._device))
 
   def _split_action(self, action):
-    alpha = None
-    if self._config.get('learn_raibert_alpha', False):
-        alpha = action[:, -1:]  # Last element is alpha
-        action = action[:, :-1]  # Remove alpha from main action
-
-    gait_action = None
-    if self._config.get('include_gait_action', False):
-      gait_action = action[:, :1]
-      action = action[:, 1:]
-
-    foot_action = None
-    if self._config.get('include_foot_action', False):
-      if self._config.get('mirror_foot_action', False):
-        foot_action = action[:, -6:].reshape(
-            (-1, 2, 3))  #+ self._robot.hip_offset
-        foot_action = torch.stack([
-            foot_action[:, 0],
-            foot_action[:, 0],
-            foot_action[:, 1],
-            foot_action[:, 1],
-        ],
-                                  dim=1)
-        action = action[:, :-6]
-      else:
-        foot_action = action[:, -12:].reshape(
-            (-1, 4, 3))  #+ self._robot.hip_offset
-        action = action[:, :-12]
-
-    com_action = action
-    return gait_action, com_action, foot_action, alpha
+      # Extract alpha FIRST if learning Raibert gain (it's the last element)
+      alpha = None
+      if self._config.get('learn_raibert_alpha', False):
+          alpha = action[:, -1:]  # Last element is alpha
+          action = action[:, :-1]  # Remove alpha from main action
+      
+      # Now process the remaining action components in order
+      gait_action = None
+      if self._config.get('include_gait_action', False):
+          gait_action = action[:, :1]
+          action = action[:, 1:]
+      
+      foot_action = None
+      if self._config.get('include_foot_action', False):
+          if self._config.get('mirror_foot_action', False):
+              foot_action = action[:, -6:].reshape((-1, 2, 3))
+              foot_action = torch.stack([
+                  foot_action[:, 0],
+                  foot_action[:, 0],
+                  foot_action[:, 1],
+                  foot_action[:, 1],
+              ], dim=1)
+              action = action[:, :-6]
+          else:
+              foot_action = action[:, -12:].reshape((-1, 4, 3))
+              action = action[:, :-12]
+      
+      com_action = action
+      return gait_action, com_action, foot_action, alpha
 
   def reset_idx(self, env_ids) -> torch.Tensor:
     # Aggregate rewards

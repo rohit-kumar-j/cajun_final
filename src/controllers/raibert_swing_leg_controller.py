@@ -174,14 +174,17 @@ class RaibertSwingLegController:
     # Add small epsilon to avoid log(0)
     epsilon = 1e-6
     current_velocity_mag = torch.clamp(current_velocity_mag, min=epsilon)
+
+    base_kp = 0.3 + 0.05 * torch.clamp(current_velocity_mag, max=5.0)
     
-    # Compute single raibert_kp per environment using alpha * log(velocity)
+    # Let alpha fine-tune around this base
     self._raibert_kp = torch.clamp(
-        self._alpha * torch.log(current_velocity_mag + 1.0),  # Shape: (num_envs, 1)
+        base_kp * self._alpha,  # alpha acts as a multiplier [0.5, 2.0]
         min=0.3,
-        max=0.6
-    ).unsqueeze(-1)  # Shape: (num_envs, 1, 1) for broadcasting
-                # Debug print here (outside JIT compilation)
+        max=0.65  # Maybe increase max to 0.65 or 0.7 for high speeds
+    ).unsqueeze(-1)
+    
+    # # Debug print here (outside JIT compilation)
     # if self._num_envs <= 20:  # Only print for small number of envs
     #     print(f"raibert_kp: {self._raibert_kp.squeeze()}")
     # else:

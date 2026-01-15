@@ -718,7 +718,7 @@ def main(argv):
         config = yaml.load(f, Loader=yaml.Loader)
 
     with config.unlocked():
-        velocity_up = torch.linspace(0.8, 4.0, 50)
+        velocity_up = torch.linspace(0.5, 6.0, 100)
         velocity_schedule = velocity_up
         config.environment.jumping_distance_schedule = velocity_schedule / config.environment.gait.stepping_frequency
         config.environment.gait.desired_velocity = torch.tensor([velocity_schedule[0].item(), 0, 0])
@@ -780,10 +780,9 @@ def main(argv):
     cot_data_count = 0
 
     # Pre-allocate buffers for stride data
-    max_stride_steps = 1000
     num_joints = 12
-    stride_torques = np.zeros((num_joints, max_stride_steps), dtype=np.float32)
-    stride_velocities = np.zeros((num_joints, max_stride_steps), dtype=np.float32)
+    stride_torques = np.zeros((num_joints, max_strides), dtype=np.float32)
+    stride_velocities = np.zeros((num_joints, max_strides), dtype=np.float32)
     stride_step_count = 0
     stride_x_velocities = []
     stride_time_start = 0.0
@@ -809,7 +808,7 @@ def main(argv):
             current_joint_velocities = env.robot.motor_velocities[0].cpu().numpy()
 
             # Store stride data
-            if stride_step_count < max_stride_steps:
+            if stride_step_count < max_strides:
                 stride_torques[:, stride_step_count] = current_joint_torques
                 stride_velocities[:, stride_step_count] = current_joint_velocities
                 stride_x_velocities.append(forward_velocity)
@@ -855,6 +854,7 @@ def main(argv):
                         )
 
                         print(f"  Stride Vel: {stride_velocity:.3f} m/s, COT: {stride_cot:.4f}")
+                        print(f"  Curr Vel: {forward_velocity:.3f} m/s, Desired Velocity: {velocity_schedule[min(velocity_index, len(velocity_schedule)-1)]:.4f} m\s")
 
                         # Filter valid COT values
                         if 0 < stride_cot < 5.0:
@@ -881,7 +881,7 @@ def main(argv):
                     is_stride_event=is_stride_event
                 )
 
-            if steps_count >= 1000:  # break from loop and save
+            if steps_count >= max_strides:  # break from loop and save
                 break
 
     # Cleanup code...
