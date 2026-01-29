@@ -9,17 +9,18 @@ def get_config():
 
   gait_config = ConfigDict()
   gait_config.gait_name = "g2_rotary"
-  gait_config.stepping_frequency = 2.5
+  gait_config.stepping_frequency = 2.0
   gait_config.initial_offset = np.array([0.,0.1,.57,.47],
                                         dtype=np.float32) * (2 * np.pi)
+  # Correct Order:[ FrontRight, FrontLeft, RearRight, RearLeft ]
 
-  gait_config.swing_ratio = np.array([0.8, 0.8, 0.8, 0.8], dtype=np.float32)
+  gait_config.swing_ratio = np.array([1,1,1,1], dtype=np.float32) * 0.75
   config.gait = gait_config
   config.learn_raibert_alpha = True
 
   config.goal_lb = torch.tensor([0.3, 0.],
                                 dtype=torch.float)  # Lin_x, Lin_y, Rot_z
-  config.goal_ub = torch.tensor([1.5, 0.], dtype=torch.float)
+  config.goal_ub = torch.tensor([2.0, 0.], dtype=torch.float)
   config.velocity_lb = 0.3 # m/s
   config.velocity_ub = 6.0 # m/s
 
@@ -33,7 +34,7 @@ def get_config():
       [0.5, -0.001, -3, -0.001, -3., -0.001, -0.001, -2.5, -0.001] +
       [-0.1, -0.0001, -0.001] * 4)
   config.action_ub = np.array(
-      [3.999, 0.001, 3, 0.001, 3., 0.001, 0.001, 2.5, 0.001] +
+      [4.999, 0.001, 3, 0.001, 3., 0.001, 0.001, 2.5, 0.001] +
       [0.1, 0.0001, 0.2] * 4)
 
   config.episode_length_s = 20.
@@ -71,6 +72,7 @@ def get_config():
       ('com_distance_to_goal_squared', 0.016),
       ('com_height', 0.01),
       ('speed_tracking', 0.01),
+      ('forward_speed', 0.02),
   ]
   config.clip_negative_reward = False
   config.normalize_reward_by_phase = True

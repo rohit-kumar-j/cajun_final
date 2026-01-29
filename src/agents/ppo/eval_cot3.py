@@ -13,6 +13,8 @@ import torch
 import yaml
 
 import numpy as np
+import matplotlib
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from collections import deque
 
@@ -28,7 +30,6 @@ def calculate_cot_per_stride2(joint_torques, joint_velocities, dt, x_vel_body_av
     cot = mechanical_work / gravitational_work
     return velocity, cot
 
-
 class GaitStrideDetector:
     """
     Detects strides based on flight phases for different gallop types.
@@ -36,14 +37,39 @@ class GaitStrideDetector:
     Contact array order: [FR, FL, RR, RL] (indices 0, 1, 2, 3)
     """
     
-    def __init__(self, gait_type='g0_transverse', window_size=200, min_stride_samples=15):
+    def __init__(self, gait_type='g0_transverse', window_size=200, min_stride_samples=15, 
+                 swing_ratio=None, debounce_duration=3):
+        """
+        Args:
+            gait_type: Gait type string (e.g., 'g0_transverse', 'g2_transverse')
+            window_size: Size of contact buffer window
+            min_stride_samples: Minimum samples for a valid stride
+            swing_ratio: List of 4 swing ratios [FR, FL, RL, RR] - REQUIRED for G0 gaits
+            debounce_duration: Minimum samples for a contact state change to be considered real
+        """
         self.gait_type = gait_type.lower()
         self.window_size = window_size
         self.min_stride_samples = min_stride_samples
+        self.debounce_duration = debounce_duration
         
         parts = self.gait_type.split('_')
         self.gait_class = parts[0]
         self.gait_variant = parts[1] if len(parts) > 1 else 'transverse'
+        
+        # Validate swing_ratio is provided for G0 gaits
+        if self.gait_class == 'g0':
+            if swing_ratio is None:
+                raise ValueError(
+                    f"swing_ratio is REQUIRED for G0 gaits but was not provided. "
+                    f"Pass swing_ratio=[FR, FL, RL, RR] to the constructor."
+                )
+            if len(swing_ratio) != 4:
+                raise ValueError(
+                    f"swing_ratio must have exactly 4 elements [FR, FL, RL, RR], "
+                    f"got {len(swing_ratio)} elements."
+                )
+        
+        self.swing_ratio = swing_ratio
         
         self.expected_flight_phases = {
             'g0': 0,
@@ -69,6 +95,13 @@ class GaitStrideDetector:
     def add_contact(self, time_val, contacts):
         """
         Add a contact data point to the buffer and check for stride.
+        
+        Args:
+            time_val: Current simulation time
+            contacts: Contact array [FR, FL, RR, RL]
+            
+        Returns:
+            stride_info dict if stride detected, None otherwise
         """
         self.contact_buffer.append(list(contacts))
         self.time_buffer.append(time_val)
@@ -77,13 +110,70 @@ class GaitStrideDetector:
         # But preserve search_start_idx validity
         max_buffer_size = self.window_size * 2
         if len(self.contact_buffer) > max_buffer_size:
-            # Remove old entries and adjust search_start_idx
             trim_amount = len(self.contact_buffer) - self.window_size
             self.contact_buffer = self.contact_buffer[trim_amount:]
             self.time_buffer = self.time_buffer[trim_amount:]
             self.search_start_idx = max(0, self.search_start_idx - trim_amount)
         
         return self._detect_stride()
+    
+    def _debounce_leg_contacts(self, contacts, leg_idx):
+        """
+        Debounce contact signal for a single leg to remove brief dropouts/spikes.
+        
+        Args:
+            contacts: List of contact arrays
+            leg_idx: Which leg to debounce
+        
+        Returns:
+            List of debounced contact states (True/False) for the specified leg
+        """
+        raw_signal = [c[leg_idx] for c in contacts]
+        
+        if len(raw_signal) < self.debounce_duration:
+            return raw_signal
+        
+        debounced = raw_signal.copy()
+        
+        # Forward pass: remove brief OFF periods (dropouts in stance)
+        i = 0
+        while i < len(debounced):
+            if not debounced[i]:  # Found an OFF
+                off_start = i
+                while i < len(debounced) and not debounced[i]:
+                    i += 1
+                off_duration = i - off_start
+                
+                # If too brief and surrounded by ON, fill it in
+                if off_duration < self.debounce_duration:
+                    has_on_before = off_start > 0 and debounced[off_start - 1]
+                    has_on_after = i < len(debounced) and debounced[i]
+                    if has_on_before and has_on_after:
+                        for j in range(off_start, i):
+                            debounced[j] = True
+            else:
+                i += 1
+        
+        # Backward pass: remove brief ON periods (spikes during swing)
+        i = 0
+        while i < len(debounced):
+            if debounced[i]:  # Found an ON
+                on_start = i
+                while i < len(debounced) and debounced[i]:
+                    i += 1
+                on_duration = i - on_start
+                
+                # If too brief and surrounded by OFF, clear it
+                if on_duration < self.debounce_duration:
+                    has_off_before = on_start > 0 and not debounced[on_start - 1]
+                    has_off_after = i < len(debounced) and not debounced[i]
+                    if has_off_before and has_off_after:
+                        for j in range(on_start, i):
+                            debounced[j] = False
+            else:
+                i += 1
+        
+        return debounced
     
     def _is_flight_phase(self, contacts):
         """Check if all legs are off the ground (flight phase)."""
@@ -117,27 +207,6 @@ class GaitStrideDetector:
             return 'fore'
         else:
             return 'mixed'
-    
-    def _find_flight_phases(self, contacts_list):
-        """Find all flight phases in the contact sequence."""
-        flight_phases = []
-        in_flight = False
-        flight_start = None
-        
-        for i, contacts in enumerate(contacts_list):
-            is_flight = self._is_flight_phase(contacts)
-            
-            if is_flight and not in_flight:
-                in_flight = True
-                flight_start = i
-            elif not is_flight and in_flight:
-                in_flight = False
-                flight_phases.append((flight_start, i))
-        
-        if in_flight and flight_start is not None:
-            flight_phases.append((flight_start, len(contacts_list)))
-            
-        return flight_phases
     
     def _get_state_sequence(self, contacts_list):
         """Convert contact sequence to state sequence with transitions."""
@@ -176,14 +245,14 @@ class GaitStrideDetector:
         if len(search_contacts) < self.min_stride_samples:
             return None
         
-        # Get flight phases in search window
+        # Get flight phases in search window (used by G2, GG, GE)
         flight_phases = self._find_flight_phases(search_contacts)
         
         # Detect based on gait class
         stride_info = None
         
         if self.gait_class == 'g0':
-            stride_info = self._detect_g0_stride(search_contacts, search_times, flight_phases)
+            stride_info = self._detect_g0_stride(search_contacts, search_times)
         elif self.gait_class == 'g2':
             stride_info = self._detect_g2_stride(search_contacts, search_times, flight_phases)
         elif self.gait_class == 'gg':
@@ -199,43 +268,139 @@ class GaitStrideDetector:
             return stride_info
         
         return None
-    
-    def _detect_g0_stride(self, contacts, times, flight_phases):
-        """Detect G0 stride: No flight phases."""
-        # G0 should have NO flight phases
-        if flight_phases:
+
+    def _find_flight_phases(self, contacts_list, min_duration=None):
+        """
+        Find all flight phases in the contact sequence.
+        
+        Args:
+            contacts_list: List of contact arrays
+            min_duration: Minimum samples for a flight phase to count. 
+                          If None, uses self.debounce_duration
+        """
+        if min_duration is None:
+            min_duration = self.debounce_duration
+        
+        flight_phases = []
+        in_flight = False
+        flight_start = None
+        
+        for i, contacts in enumerate(contacts_list):
+            is_flight = self._is_flight_phase(contacts)
+            
+            if is_flight and not in_flight:
+                in_flight = True
+                flight_start = i
+            elif not is_flight and in_flight:
+                in_flight = False
+                # Only count as flight phase if it's long enough
+                if (i - flight_start) >= min_duration:
+                    flight_phases.append((flight_start, i))
+        
+        if in_flight and flight_start is not None:
+            if (len(contacts_list) - flight_start) >= min_duration:
+                flight_phases.append((flight_start, len(contacts_list)))
+            
+        return flight_phases
+
+    def _detect_g0_stride(self, contacts, times):
+        """
+        Detect G0 stride using single leg contact cycle.
+        
+        G0 gaits may have brief/accidental flight phases in simulation,
+        so we ignore flight phases entirely and just track one reference leg
+        through its stance -> swing -> stance cycle.
+        """
+        if len(contacts) < self.min_stride_samples:
+            print(f"  [G0 Debug] Rejected: only {len(contacts)} samples, need {self.min_stride_samples}")
             return None
         
-        state_seq = self._get_state_sequence(contacts)
+        # Use Front Right (index 0) as reference leg
+        ref_leg_idx = self.FRONT_RIGHT
         
-        if len(state_seq) < 4:
+        # Debounce the contact signal to remove brief dropouts/spikes
+        debounced_contacts = self._debounce_leg_contacts(contacts, ref_leg_idx)
+        
+        # Debug: show signal stats
+        raw_signal = [c[ref_leg_idx] for c in contacts]
+        raw_on = sum(raw_signal)
+        debounced_on = sum(debounced_contacts)
+        print(f"  [G0 Debug] FR contacts: raw_on={raw_on}/{len(raw_signal)}, debounced_on={debounced_on}/{len(debounced_contacts)}")
+        
+        # Find stance-to-stance transitions for reference leg
+        state = 'searching_for_liftoff'
+        liftoff_idx = None
+        touchdown_idx = None
+        
+        # Need to find a complete cycle, so start from a known stance
+        start_idx = None
+        for i, contact in enumerate(debounced_contacts):
+            if contact:
+                start_idx = i
+                break
+        
+        if start_idx is None:
+            print(f"  [G0 Debug] Rejected: no initial stance found for FR leg")
             return None
         
-        for i in range(len(state_seq) - 3):
-            window = state_seq[i:i+4]
-            states = [s[0] for s in window]
-            
-            if 'flight' in states:
-                continue
-            
-            unique_states = set(states)
-            if len(unique_states) >= 2 and 'mixed' in unique_states:
-                start_idx = window[0][1]
-                end_idx = window[-1][2]
-                
-                if end_idx - start_idx >= self.min_stride_samples:
-                    return {
-                        'local_start_idx': start_idx,
-                        'local_end_idx': end_idx,
-                        'start_time': times[start_idx],
-                        'end_time': times[end_idx - 1] if end_idx <= len(times) else times[-1],
-                        'gait_type': self.gait_type,
-                        'gait_class': 'G0',
-                        'num_flight_phases': 0,
-                        'valid': True
-                    }
+        print(f"  [G0 Debug] Found initial stance at idx {start_idx} (t={times[start_idx]:.3f}s)")
         
-        return None
+        # Search for: stance -> swing -> stance
+        for i in range(start_idx, len(debounced_contacts)):
+            contact = debounced_contacts[i]
+            
+            if state == 'searching_for_liftoff':
+                if not contact:
+                    liftoff_idx = i
+                    state = 'searching_for_touchdown'
+                    print(f"  [G0 Debug] Liftoff at idx {liftoff_idx} (t={times[liftoff_idx]:.3f}s)")
+                    
+            elif state == 'searching_for_touchdown':
+                if contact:
+                    touchdown_idx = i
+                    state = 'found_stride'
+                    print(f"  [G0 Debug] Touchdown at idx {touchdown_idx} (t={times[touchdown_idx]:.3f}s)")
+                    break
+        
+        if state != 'found_stride' or liftoff_idx is None or touchdown_idx is None:
+            print(f"  [G0 Debug] Rejected: incomplete cycle, state={state}, liftoff={liftoff_idx}, touchdown={touchdown_idx}")
+            return None
+        
+        # Validate stride duration
+        stride_samples = touchdown_idx - start_idx
+        if stride_samples < self.min_stride_samples:
+            print(f"  [G0 Debug] Rejected: stride too short ({stride_samples} < {self.min_stride_samples})")
+            return None
+        
+        # Validate swing duration
+        swing_samples = touchdown_idx - liftoff_idx
+        expected_swing_ratio = self.swing_ratio[ref_leg_idx]
+        min_swing = int(self.min_stride_samples * expected_swing_ratio * 0.3)  # Allow 70% tolerance
+        if swing_samples < min_swing:
+            print(f"  [G0 Debug] Rejected: swing too short ({swing_samples} < {min_swing})")
+            return None
+        
+        stride_duration = times[touchdown_idx] - times[start_idx] if touchdown_idx < len(times) else times[-1] - times[start_idx]
+        
+        print(f"  [G0 Debug] SUCCESS! Stride #{self.stride_count + 1}: "
+              f"samples={stride_samples}, swing={swing_samples}, duration={stride_duration:.3f}s")
+        
+        return {
+            'local_start_idx': start_idx,
+            'local_end_idx': touchdown_idx,
+            'start_time': times[start_idx],
+            'end_time': times[touchdown_idx] if touchdown_idx < len(times) else times[-1],
+            'stride_duration': stride_duration,
+            'gait_type': self.gait_type,
+            'gait_class': 'G0',
+            'num_flight_phases': 0,
+            'reference_leg': 'FR',
+            'liftoff_idx': liftoff_idx,
+            'touchdown_idx': touchdown_idx,
+            'swing_samples': swing_samples,
+            'stride_samples': stride_samples,
+            'valid': True
+        }
     
     def _detect_g2_stride(self, contacts, times, flight_phases):
         """Detect G2 stride: Two flight phases per stride."""
@@ -262,15 +427,19 @@ class GaitStrideDetector:
             end_idx = min(len(contacts), fp2_end + 3)
             
             if end_idx - start_idx >= self.min_stride_samples:
+                stride_duration = times[end_idx - 1] - times[start_idx] if end_idx <= len(times) else times[-1] - times[start_idx]
+                
                 return {
                     'local_start_idx': start_idx,
                     'local_end_idx': end_idx,
                     'start_time': times[start_idx],
                     'end_time': times[end_idx - 1] if end_idx <= len(times) else times[-1],
+                    'stride_duration': stride_duration,
                     'gait_type': self.gait_type,
                     'gait_class': 'G2',
                     'num_flight_phases': 2,
                     'flight_phases': [(fp1_start, fp1_end), (fp2_start, fp2_end)],
+                    'stride_samples': end_idx - start_idx,
                     'valid': True
                 }
         
@@ -289,14 +458,18 @@ class GaitStrideDetector:
             window_flights = self._find_flight_phases(window_contacts)
             
             if len(window_flights) == 1 and (end_idx - start_idx) >= self.min_stride_samples:
+                stride_duration = times[end_idx - 1] - times[start_idx] if end_idx <= len(times) else times[-1] - times[start_idx]
+                
                 return {
                     'local_start_idx': start_idx,
                     'local_end_idx': end_idx,
                     'start_time': times[start_idx],
                     'end_time': times[end_idx - 1] if end_idx <= len(times) else times[-1],
+                    'stride_duration': stride_duration,
                     'gait_type': self.gait_type,
                     'gait_class': 'GG',
                     'num_flight_phases': 1,
+                    'stride_samples': end_idx - start_idx,
                     'valid': True
                 }
         
@@ -718,7 +891,7 @@ def main(argv):
         config = yaml.load(f, Loader=yaml.Loader)
 
     with config.unlocked():
-        velocity_up = torch.linspace(0.5, 6.0, 100)
+        velocity_up = torch.linspace(0.75, 6.0, 100)
         velocity_schedule = velocity_up
         config.environment.jumping_distance_schedule = velocity_schedule / config.environment.gait.stepping_frequency
         config.environment.gait.desired_velocity = torch.tensor([velocity_schedule[0].item(), 0, 0])
@@ -768,7 +941,9 @@ def main(argv):
         print(f"Real-time plotting enabled (update every {FLAGS.plot_update_interval}s)")
 
     # Initialize stride detector
-    stride_detector = GaitStrideDetector(gait_type=gait_name, window_size=200)
+    stride_detector = GaitStrideDetector(gait_type=gait_name,
+                                         swing_ratio=swing_ratio,
+                                         window_size=200)
     print(f"Stride detector initialized for gait type: {gait_name}")
 
     # COT data storage

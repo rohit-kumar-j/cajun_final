@@ -528,6 +528,7 @@ class JumpEnv:
     self._resample_command(env_ids_to_resample)
     if not self._use_real_robot:
       self.reset_idx(dones.nonzero(as_tuple=False).flatten())
+      # pass
     # if dones.any():
     #   import pdb
     #   pdb.set_trace()
