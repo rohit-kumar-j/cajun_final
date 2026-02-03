@@ -1,0 +1,4 @@
+# Gait: g0_transverse
+# Samples: 7266
+# dt: 0.002s (500 Hz)
+# Duration: 14.53s

@@ -37,7 +37,7 @@ def get_training_config():
   runner_config.num_steps_per_env = 24
   runner_config.save_interval = 500
   runner_config.experiment_name = "g2_rotary_night"
-  runner_config.max_iterations = 8000
+  runner_config.max_iterations = 16000
   # runner_config.resume = False
   # runner_config.load_run = -1
   # runner_config.checkpoint = -1
