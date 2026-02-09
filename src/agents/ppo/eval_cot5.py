@@ -347,10 +347,10 @@ def main(argv):
                 # Video recording - capture frames at specified FPS
                 if FLAGS.record_video and (t - last_frame_time) >= frame_interval:
                     # Get camera image from Isaac Gym
-                    env._gym.render_all_camera_sensors(env.sim)
+                    env._gym.render_all_camera_sensors(env._sim)
                     
                     # Get image from viewer camera
-                    img = env._gym.get_camera_image(env.sim, env.envs[0], env._gym.get_viewer_camera_handle(env.viewer), gymapi.IMAGE_COLOR)
+                    img = env._gym.get_camera_image(env._sim, env.envs[0], env._gym.get_viewer_camera_handle(env.viewer), gymapi.IMAGE_COLOR)
                     
                     # Reshape image (Isaac Gym returns flat array)
                     img = img.reshape(img.shape[0], -1, 4)  # RGBA format
