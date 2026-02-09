@@ -350,7 +350,7 @@ def main(argv):
                     env._gym.render_all_camera_sensors(env._sim)
                     
                     # Get image from viewer camera
-                    img = env._gym.get_camera_image(env._sim, env.envs[0], env._gym.get_viewer_camera_handle(env.viewer), gymapi.IMAGE_COLOR)
+                    img = env._gym.get_camera_image(env._sim, env._envs[0], env._gym.get_viewer_camera_handle(env.viewer), gymapi.IMAGE_COLOR)
                     
                     # Reshape image (Isaac Gym returns flat array)
                     img = img.reshape(img.shape[0], -1, 4)  # RGBA format
