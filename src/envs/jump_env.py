@@ -628,26 +628,26 @@ class JumpEnv:
         desired_foot_positions += foot_action_world
 
       # DEBUG: View projected rectagles on the ground
-      # if self._show_gui and step == 0:  # Only draw once per env.step(), not every control loop iteration
-      #   self._gym.clear_lines(self._viewer)
-      #   
-      #   # Draw desired foot landing positions
-      #   env_id = 0  # Only visualize first environment
-      #   for foot_id in range(4):
-      #       foot_pos = desired_foot_positions[env_id, foot_id].cpu().numpy()
-      #       
-      #       # Different color for each foot
-      #       colors = [
-      #           [1, 0, 0],  # Front-left: Red
-      #           [0, 1, 0],  # Front-right: Green
-      #           [0, 0, 1],  # Rear-left: Blue
-      #           [1, 1, 0]   # Rear-right: Yellow
-      #       ]
-      #       
-      #       # Draw box at foot position with 0.35m length x 0.6m width
-      #       self._draw_box(self._gym, self._viewer, 
-      #               center=(foot_pos[0], foot_pos[1], foot_pos[2], 0.175, 0.3),
-      #               color=colors[foot_id])
+      if self._show_gui and step == 0:  # Only draw once per env.step(), not every control loop iteration
+        self._gym.clear_lines(self._viewer)
+        
+        # Draw desired foot landing positions
+        env_id = 0  # Only visualize first environment
+        for foot_id in range(4):
+            foot_pos = desired_foot_positions[env_id, foot_id].cpu().numpy()
+            
+            # Different color for each foot
+            colors = [
+                [1, 0, 0],  # Front-left: Red
+                [0, 1, 0],  # Front-right: Green
+                [0, 0, 1],  # Rear-left: Blue
+                [1, 1, 0]   # Rear-right: Yellow
+            ]
+            
+            # Draw box at foot position with 0.35m length x 0.6m width
+            self._draw_box(self._gym, self._viewer, 
+                    center=(foot_pos[0], foot_pos[1], foot_pos[2], 0.175, 0.3),
+                    color=colors[foot_id])
 
       motor_action, self._desired_acc, self._solved_acc, self._qp_cost, self._num_clips = self._torque_optimizer.get_action(
           self._gait_generator.desired_contact_state,
