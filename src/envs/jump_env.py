@@ -584,7 +584,7 @@ class JumpEnv:
     for step in range(
         max(int(self._config.env_dt / self._robot.control_timestep), 1)):
       self._gait_generator.update()
-      self._swing_leg_controller.update(self._desired_velocity)
+      self._swing_leg_controller.update()
 
       if self._use_real_robot:
         self._robot.state_estimator.update_foot_contact(
