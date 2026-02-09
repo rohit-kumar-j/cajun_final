@@ -18,7 +18,6 @@ import yaml
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
-#matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
 
@@ -211,7 +210,7 @@ flags.DEFINE_bool("show_gui", True, "whether to show GUI.")
 flags.DEFINE_bool("use_real_robot", False, "whether to use real robot.")
 flags.DEFINE_integer("num_envs", 1, "number of environments to evaluate in parallel.")
 flags.DEFINE_bool("use_contact_sensor", True, "whether to use contact sensor.")
-flags.DEFINE_bool("enable_plotting", True, "whether to enable real-time plotting.")
+flags.DEFINE_bool("enable_plotting", False, "whether to enable real-time plotting.")
 flags.DEFINE_integer("max_steps", 10000, "maximum number of simulation steps.")
 flags.DEFINE_bool("record_video", False, "whether to record video of simulation.")
 flags.DEFINE_integer("render_fps", 30, "FPS for video recording.")
@@ -226,6 +225,7 @@ def get_latest_policy_path(logdir):
         if e.startswith("model"):
             return os.path.join(logdir, e)
     raise ValueError("No Valid Policy Found.")
+
 
 def main(argv):
     global _exit_state
@@ -258,10 +258,6 @@ def main(argv):
     
     print(f"Gait: {gait_name}")
     print(f"Output: {output_dir}")
-    
-    if FLAGS.record_video:
-        print("WARNING: Video recording is not yet implemented due to Isaac Gym API limitations.")
-        print("Running without video recording...")
 
     with config.unlocked():
         velocity_up = torch.linspace(0.5, 6.0, 500)
@@ -270,9 +266,13 @@ def main(argv):
         config.environment.gait.desired_velocity = torch.tensor([velocity_schedule[0].item(), 0, 0])
         config.environment.max_jumps = 100000
 
+    # Always need GUI for rendering
+    show_gui_actual = FLAGS.show_gui or FLAGS.record_video
     env = config.env_class(num_envs=FLAGS.num_envs, device=device, config=config.environment,
-                           show_gui=FLAGS.show_gui, use_real_robot=FLAGS.use_real_robot)
+                           show_gui=show_gui_actual, use_real_robot=FLAGS.use_real_robot)
     env = env_wrappers.RangeNormalize(env)
+    
+    unwrapped_env = env._env
     
     if FLAGS.use_real_robot:
         env.robot.state_estimator.use_external_contact_estimator = (not FLAGS.use_contact_sensor)
@@ -281,6 +281,18 @@ def main(argv):
     runner.load(policy_path)
     policy = runner.get_inference_policy()
     runner.alg.actor_critic.train()
+
+    # Setup video recording - save frames to disk
+    frames_dir = None
+    video_path = None
+    frame_count = 0
+    if FLAGS.record_video:
+        os.makedirs(output_dir, exist_ok=True)
+        frames_dir = os.path.join(output_dir, "frames")
+        os.makedirs(frames_dir, exist_ok=True)
+        video_path = os.path.join(output_dir, f"detailed_{gait_name}_data_{timestamp}_{FLAGS.render_fps}fps.mp4")
+        print(f"Frames will be saved to: {frames_dir}")
+        print(f"Video will be created at: {video_path}")
 
     state, _ = env.reset()
     
@@ -310,13 +322,15 @@ def main(argv):
     _exit_state['start_time'] = time.time()
     
     # Initialize plotter
-    plotter = FastContactPlotter(window_duration=0.5) if FLAGS.enable_plotting else None
+    plotter = FastContactPlotter(window_duration=0.5) if (FLAGS.enable_plotting and not FLAGS.record_video) else None
 
     print(f"Starting simulation (max {FLAGS.max_steps} steps)...")
     
     steps_count = 0
     data_count = 0
     velocity_index = 0
+    frame_interval = 1.0 / FLAGS.render_fps
+    last_frame_time = 0
     
     try:
         with torch.inference_mode():
@@ -326,9 +340,24 @@ def main(argv):
                 action = policy(state)
                 state, _, reward, done, info = env.step(action)
 
-                # Extract data (minimize CPU transfers by batching)
+                # Extract data
                 t = env.robot.time_since_reset.item()
-                contacts = env.robot.foot_contacts[0].cpu().numpy()  # [FR, FL, RR, RL]
+                
+                # Video recording - save frames as images
+                if FLAGS.record_video and (t - last_frame_time) >= frame_interval:
+                    try:
+                        # Write screenshot using Isaac Gym's built-in function
+                        frame_path = os.path.join(frames_dir, f"frame_{frame_count:06d}.png")
+                        unwrapped_env._gym.write_viewer_image_to_file(unwrapped_env._viewer, frame_path)
+                        frame_count += 1
+                        last_frame_time = t
+                        
+                        if frame_count % 100 == 0:
+                            print(f"Captured {frame_count} frames...")
+                    except Exception as e:
+                        print(f"Frame capture error: {e}")
+                
+                contacts = env.robot.foot_contacts[0].cpu().numpy()
                 base_pos = env.robot.base_position[0].cpu().numpy()
                 base_vel = env.robot.base_velocity_world_frame[0].cpu().numpy()
                 base_rpy = env.robot.base_orientation_rpy[0].cpu().numpy()
@@ -342,7 +371,7 @@ def main(argv):
                 except:
                     foot_forces = np.zeros(12, dtype=np.float32)
                 
-                # Store data directly (no bounds check - preallocated)
+                # Store data
                 data_arrays['time'][data_count] = t
                 data_arrays['torso_x'][data_count] = base_pos[0]
                 data_arrays['torso_y'][data_count] = base_pos[1]
@@ -366,7 +395,7 @@ def main(argv):
                 _exit_state['data_count'] = data_count
                 _exit_state['steps_count'] = steps_count
 
-                # Update plotter (rate-limited internally)
+                # Update plotter
                 if plotter is not None:
                     plotter.update(t, contacts)
 
@@ -376,7 +405,7 @@ def main(argv):
                     env._desired_velocity[:, 0] = velocity_schedule[velocity_index]
                     env._desired_velocity[:, 1:] = 0
 
-                # Progress every 2000 steps
+                # Progress
                 if steps_count % 2000 == 0:
                     print(f"Step {steps_count}/{FLAGS.max_steps}, t={t:.2f}s, vel={np.linalg.norm(base_vel):.2f}m/s")
 
@@ -389,13 +418,36 @@ def main(argv):
             plotter.close()
         raise
     
-    # Normal completion
+    # Create video from frames
+    if FLAGS.record_video and frame_count > 0:
+        print(f"\nCreating video from {frame_count} frames...")
+        try:
+            # Use ffmpeg to create video
+            import subprocess
+            cmd = [
+                'ffmpeg', '-y', '-framerate', str(FLAGS.render_fps),
+                '-i', os.path.join(frames_dir, 'frame_%06d.png'),
+                '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
+                video_path
+            ]
+            subprocess.run(cmd, check=True)
+            print(f"Video saved: {video_path}")
+            
+            # Optionally delete frames to save space
+            #import shutil
+            #shutil.rmtree(frames_dir)
+            #print(f"Cleaned up temporary frames")
+        except Exception as e:
+            print(f"Error creating video: {e}")
+            print(f"Frames are saved in: {frames_dir}")
+    
     save_data_on_exit(reason="complete")
     
     if plotter:
         print("Press Enter to close...")
         input()
         plotter.close()
+
 
 if __name__ == "__main__":
     app.run(main)
