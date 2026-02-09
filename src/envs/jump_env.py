@@ -17,7 +17,7 @@ from src.controllers import qp_torque_optimizer
 from src.controllers import raibert_swing_leg_controller
 from src.envs import go1_rewards
 from src.robots import go1, go1_robot
-from src.robots.motors import MotorControlMode
+from src.robots.motors import MotorControlMode, MotorCommand
 
 
 # @torch.jit.script
@@ -83,6 +83,7 @@ class JumpEnv:
     self._show_gui = show_gui
     self._config = config
     self._use_real_robot = use_real_robot
+    self._use_raibert_controller = config.get('use_raibert_controller', True)
     self._jumping_distance_schedule = config.get('jumping_distance_schedule',
                                                  None)
     if self._jumping_distance_schedule is not None:
@@ -94,6 +95,12 @@ class JumpEnv:
       if self._config.get('observation_noise', None) is not None:
         self._config.observation_noise = to_torch(
             self._config.observation_noise, device=self._device)
+#################################
+      self.velocity_lb = to_torch(self._config.velocity_lb, device=self._device)
+      self.velocity_ub = to_torch(self._config.velocity_ub, device=self._device)
+
+    self._desired_velocity = torch.zeros(self._num_envs, 3, device=self._device)
+#################################
 
     # Set up robot and controller
     use_gpu = ("cuda" in device)
@@ -137,29 +144,50 @@ class JumpEnv:
     self._robot.set_foot_frictions(self._config.get('foot_friction', 1.))
     self._gait_generator = phase_gait_generator.PhaseGaitGenerator(
         self._robot, self._config.gait)
-    self._swing_leg_controller = raibert_swing_leg_controller.RaibertSwingLegController(
-        self._robot,
-        self._gait_generator,
-        foot_height=self._config.get('swing_foot_height', 0.),
-        foot_landing_clearance=self._config.get('swing_foot_landing_clearance',
-                                                0.))
-    self._torque_optimizer = qp_torque_optimizer.QPTorqueOptimizer(
-        self._robot,
-        base_position_kp=self._config.get('base_position_kp',
-                                          np.array([0., 0., 50.])),
-        base_position_kd=self._config.get('base_position_kd',
-                                          np.array([10., 10., 10.])),
-        base_orientation_kp=self._config.get('base_orientation_kp',
-                                             np.array([50., 50., 0.])),
-        base_orientation_kd=self._config.get('base_orientation_kd',
-                                             np.array([10., 10., 10.])),
-        weight_ddq=self._config.get('qp_weight_ddq',
-                                    np.diag([20.0, 20.0, 5.0, 1.0, 1.0, .2])),
-        foot_friction_coef=self._config.get('qp_foot_friction_coef', 0.7),
-        clip_grf=self._config.get('clip_grf_in_sim') or self._use_real_robot,
-        body_inertia=self._config.get('qp_body_inertia',
-                                      np.array([0.14, 0.35, 0.35]) * 0.5),
-        use_full_qp=self._config.get('use_full_qp', False))
+
+    # Only create swing leg controller and torque optimizer if using Raibert
+    if self._use_raibert_controller:
+      self._swing_leg_controller = raibert_swing_leg_controller.RaibertSwingLegController(
+          self._robot,
+          self._gait_generator,
+          foot_height=self._config.get('swing_foot_height', 0.),
+          foot_landing_clearance=self._config.get('swing_foot_landing_clearance',
+                                                  0.))
+      self._torque_optimizer = qp_torque_optimizer.QPTorqueOptimizer(
+          self._robot,
+          base_position_kp=self._config.get('base_position_kp',
+                                            np.array([0., 0., 50.])),
+          base_position_kd=self._config.get('base_position_kd',
+                                            np.array([10., 10., 10.])),
+          base_orientation_kp=self._config.get('base_orientation_kp',
+                                               np.array([50., 50., 0.])),
+          base_orientation_kd=self._config.get('base_orientation_kd',
+                                               np.array([10., 10., 10.])),
+          weight_ddq=self._config.get('qp_weight_ddq',
+                                      np.diag([20.0, 20.0, 5.0, 1.0, 1.0, .2])),
+          foot_friction_coef=self._config.get('qp_foot_friction_coef', 0.7),
+          clip_grf=self._config.get('clip_grf_in_sim') or self._use_real_robot,
+          body_inertia=self._config.get('qp_body_inertia',
+                                        np.array([0.14, 0.35, 0.35]) * 0.5),
+          use_full_qp=self._config.get('use_full_qp', False))
+    else:
+      # Direct joint control mode: set up default standing pose
+      # Go1 default standing: [ab/ad, hip, knee] x 4 legs
+      # Order: FR, FL, RR, RL
+      self._default_joint_positions = to_torch(
+          self._config.get('default_joint_positions',
+                           [0.0, 0.9, -1.8] * 4),
+          device=self._device)
+      self._direct_control_kp = self._config.get('direct_control_kp', 30.0)
+      self._direct_control_kd = self._config.get('direct_control_kd', 1.0)
+
+      # Dummy references so reward functions that access torque_optimizer
+      # attributes don't crash. These are only used in the Raibert path
+      # but some reward functions might reference them.
+      self._desired_acc = torch.zeros((self._num_envs, 6), device=self._device)
+      self._solved_acc = torch.zeros((self._num_envs, 6), device=self._device)
+      self._qp_cost = torch.zeros(self._num_envs, device=self._device)
+      self._num_clips = torch.zeros(self._num_envs, device=self._device)
 
     self._steps_count = torch.zeros(self._num_envs, device=self._device)
     self._init_yaw = torch.zeros(self._num_envs, device=self._device)
@@ -183,18 +211,19 @@ class JumpEnv:
     self._extras = dict()
 
     # Running a few steps with dummy commands to ensure JIT compilation
-    if self._num_envs == 1 and self._use_real_robot:
-      for state in range(16):
-        desired_contact_state = torch.tensor(
-            [[(state & (1 << i)) != 0 for i in range(4)]],
-            dtype=torch.bool,
-            device=self._device)
-        for _ in range(3):
-          self._gait_generator.update()
-          self._swing_leg_controller.update()
-          desired_foot_positions = self._swing_leg_controller.desired_foot_positions
-          self._torque_optimizer.get_action(
-              desired_contact_state, swing_foot_position=desired_foot_positions)
+    if self._use_raibert_controller:
+      if self._num_envs == 1 and self._use_real_robot:
+        for state in range(16):
+          desired_contact_state = torch.tensor(
+              [[(state & (1 << i)) != 0 for i in range(4)]],
+              dtype=torch.bool,
+              device=self._device)
+          for _ in range(3):
+            self._gait_generator.update()
+            self._swing_leg_controller.update(self._desired_velocity)
+            desired_foot_positions = self._swing_leg_controller.desired_foot_positions
+            self._torque_optimizer.get_action(
+                desired_contact_state, swing_foot_position=desired_foot_positions)
 
   def _create_terrain(self):
     """Creates terrains.
@@ -224,29 +253,109 @@ class JumpEnv:
     return to_torch(init_positions, device=self._device)
 
   def _construct_observation_and_action_space(self):
-    robot_lb = to_torch(
-        [0., -3.14, -3.14, -4., -4., -10., -3.14, -3.14, -3.14] +
-        [-0.5, -0.5, -0.4] * 4,
-        device=self._device)
-    robot_ub = to_torch([0.6, 3.14, 3.14, 4., 4., 10., 3.14, 3.14, 3.14] +
-                        [0.5, 0.5, 0.] * 4,
-                        device=self._device)
+    if self._use_raibert_controller:
+      # === ORIGINAL CODE PATH (unchanged) ===
+      robot_lb = to_torch( 
+          [0., -3.14, -3.14, -4., -4., -10., -3.14, -3.14, -3.14] +
+          [-0.5, -0.5, -0.4] * 4,
+          device=self._device)
+      robot_ub = to_torch([0.6, 3.14, 3.14, 4., 4., 10., 3.14, 3.14, 3.14] +
+                          [0.5, 0.5, 0.] * 4,
+                          device=self._device)
 
-    task_lb = to_torch([-2., -2., -1., -1., -1.], device=self._device)
-    task_ub = to_torch([2., 2., 1., 1., 1.], device=self._device)
-    self._observation_lb = torch.concatenate((task_lb, robot_lb))
-    self._observation_ub = torch.concatenate((task_ub, robot_ub))
-    if self._config.get("observe_heights", False):
-      num_heightpoints = len(self._config.measured_points_x) * len(
-          self._config.measured_points_y)
-      self._observation_lb = torch.concatenate(
-          (self._observation_lb,
-           torch.zeros(num_heightpoints, device=self._device) - 3))
-      self._observation_ub = torch.concatenate(
-          (self._observation_ub,
-           torch.zeros(num_heightpoints, device=self._device) + 3))
-    self._action_lb = to_torch(self._config.action_lb, device=self._device)
-    self._action_ub = to_torch(self._config.action_ub, device=self._device)
+      task_lb = to_torch([-2., -2., -1., -1., -1.], device=self._device)
+      task_ub = to_torch([2., 2., 1., 1., 1.], device=self._device)
+
+      vel_lb = torch.full((2,), self.velocity_lb, device=self._device)
+      vel_ub = torch.full((2,), self.velocity_ub, device=self._device)
+
+      self._observation_lb = torch.concatenate((task_lb, vel_lb, robot_lb))
+      self._observation_ub = torch.concatenate((task_ub, vel_ub, robot_ub))
+
+      if self._config.get("observe_heights", False):
+          num_heightpoints = len(self._config.measured_points_x) * len(
+              self._config.measured_points_y)
+          self._observation_lb = torch.concatenate(
+              (self._observation_lb,
+               torch.zeros(num_heightpoints, device=self._device) - 3))
+          self._observation_ub = torch.concatenate(
+              (self._observation_ub,
+               torch.zeros(num_heightpoints, device=self._device) + 3))
+      
+      # Handle action bounds
+      if self._config.get('learn_raibert_alpha', False):
+          base_action_lb = to_torch(self._config.action_lb, device=self._device)
+          base_action_ub = to_torch(self._config.action_ub, device=self._device)
+          
+          alpha_lb = torch.tensor([0.5], device=self._device)
+          alpha_ub = torch.tensor([2.0], device=self._device)
+          
+          self._action_lb = torch.concatenate([base_action_lb, alpha_lb])
+          self._action_ub = torch.concatenate([base_action_ub, alpha_ub])
+      else:
+          self._action_lb = to_torch(self._config.action_lb, device=self._device)
+          self._action_ub = to_torch(self._config.action_ub, device=self._device)
+
+    else:
+      # === DIRECT JOINT CONTROL PATH ===
+      # Observation: [distance_to_goal(3), phase(2), velocity_cmd(2),
+      #               base_height(1), base_rpy(2), base_vel(3), base_ang_vel(3),
+      #               desired_contact_state(4),
+      #               motor_positions(12), motor_velocities(12),
+      #               foot_positions_in_base_frame(12)]
+      # = 3 + 2 + 2 + 1 + 2 + 3 + 3 + 4 + 12 + 12 + 12 = 56
+
+      task_lb = to_torch([-2., -2., -1., -1., -1.], device=self._device)  # dist_to_goal(3) + phase(2)
+      task_ub = to_torch([2., 2., 1., 1., 1.], device=self._device)
+
+      vel_lb = torch.full((2,), self.velocity_lb, device=self._device)
+      vel_ub = torch.full((2,), self.velocity_ub, device=self._device)
+
+      # base_height(1), roll(1), pitch(1), vx(1), vy(1), vz(1), wx(1), wy(1), wz(1)
+      base_state_lb = to_torch(
+          [0., -3.14, -3.14, -4., -4., -10., -3.14, -3.14, -3.14],
+          device=self._device)
+      base_state_ub = to_torch(
+          [0.6, 3.14, 3.14, 4., 4., 10., 3.14, 3.14, 3.14],
+          device=self._device)
+
+      # desired_contact_state(4): binary 0/1
+      contact_lb = torch.zeros(4, device=self._device)
+      contact_ub = torch.ones(4, device=self._device)
+
+      # motor_positions(12): Go1 joint limits
+      # ab/ad: [-1.047, 1.047], hip: [-0.663, 2.966], knee: [-2.721, -0.837]
+      motor_pos_lb = to_torch(
+          [-1.047, -0.663, -2.721] * 4, device=self._device)
+      motor_pos_ub = to_torch(
+          [1.047, 2.966, -0.837] * 4, device=self._device)
+
+      # motor_velocities(12)
+      motor_vel_lb = torch.full((12,), -20., device=self._device)
+      motor_vel_ub = torch.full((12,), 20., device=self._device)
+
+      # foot_positions_in_base_frame(12)
+      foot_pos_lb = to_torch([-0.5, -0.5, -0.4] * 4, device=self._device)
+      foot_pos_ub = to_torch([0.5, 0.5, 0.] * 4, device=self._device)
+
+      self._observation_lb = torch.concatenate((
+          task_lb, vel_lb, base_state_lb, contact_lb,
+          motor_pos_lb, motor_vel_lb, foot_pos_lb))
+      self._observation_ub = torch.concatenate((
+          task_ub, vel_ub, base_state_ub, contact_ub,
+          motor_pos_ub, motor_vel_ub, foot_pos_ub))
+
+      # Action: 12 joint position offsets from default standing pose
+      # Offset range per joint type:
+      #   ab/ad: [-0.5, 0.5] rad
+      #   hip:   [-1.0, 1.0] rad  (needs larger range for swing)
+      #   knee:  [-1.0, 1.0] rad  (needs larger range for swing)
+      action_offset_lb = self._config.get(
+          'direct_action_lb', [-0.5, -1.0, -1.0] * 4)
+      action_offset_ub = self._config.get(
+          'direct_action_ub', [0.5, 1.0, 1.0] * 4)
+      self._action_lb = to_torch(action_offset_lb, device=self._device)
+      self._action_ub = to_torch(action_offset_ub, device=self._device)
 
   def _prepare_rewards(self):
     self._reward_names, self._reward_fns, self._reward_scales = [], [], []
@@ -270,31 +379,36 @@ class JumpEnv:
     return self.reset_idx(torch.arange(self._num_envs, device=self._device))
 
   def _split_action(self, action):
-    gait_action = None
-    if self._config.get('include_gait_action', False):
-      gait_action = action[:, :1]
-      action = action[:, 1:]
-
-    foot_action = None
-    if self._config.get('include_foot_action', False):
-      if self._config.get('mirror_foot_action', False):
-        foot_action = action[:, -6:].reshape(
-            (-1, 2, 3))  #+ self._robot.hip_offset
-        foot_action = torch.stack([
-            foot_action[:, 0],
-            foot_action[:, 0],
-            foot_action[:, 1],
-            foot_action[:, 1],
-        ],
-                                  dim=1)
-        action = action[:, :-6]
-      else:
-        foot_action = action[:, -12:].reshape(
-            (-1, 4, 3))  #+ self._robot.hip_offset
-        action = action[:, :-12]
-
-    com_action = action
-    return gait_action, com_action, foot_action
+      """Split action into components. Only used in Raibert controller path."""
+      # Extract alpha FIRST if learning Raibert gain (it's the last element)
+      alpha = None
+      if self._config.get('learn_raibert_alpha', False):
+          alpha = action[:, -1:]  # Last element is alpha
+          action = action[:, :-1]  # Remove alpha from main action
+      
+      # Now process the remaining action components in order
+      gait_action = None
+      if self._config.get('include_gait_action', False):
+          gait_action = action[:, :1]
+          action = action[:, 1:]
+      
+      foot_action = None
+      if self._config.get('include_foot_action', False):
+          if self._config.get('mirror_foot_action', False):
+              foot_action = action[:, -6:].reshape((-1, 2, 3))
+              foot_action = torch.stack([
+                  foot_action[:, 0],
+                  foot_action[:, 0],
+                  foot_action[:, 1],
+                  foot_action[:, 1],
+              ], dim=1)
+              action = action[:, :-6]
+          else:
+              foot_action = action[:, -12:].reshape((-1, 4, 3))
+              action = action[:, :-12]
+      
+      com_action = action
+      return gait_action, com_action, foot_action, alpha
 
   def reset_idx(self, env_ids) -> torch.Tensor:
     # Aggregate rewards
@@ -328,17 +442,119 @@ class JumpEnv:
 
         self._episode_sums[reward_name][env_ids] = 0
 
+      r = torch.rand(env_ids.shape[0], device=self.device)  # sample N random numbers in [0, 1)
+      desired_velocity_x = self.velocity_lb + r * (self.velocity_ub - self.velocity_lb)
+      self._desired_velocity[env_ids, 0]= desired_velocity_x
+      self._desired_velocity[env_ids, 1:] = 0
+
       self._steps_count[env_ids] = 0
       self._cycle_count[env_ids] = 0
       self._init_yaw[env_ids] = self._robot.base_orientation_rpy[env_ids, 2]
       self._robot.reset_idx(env_ids)
-      self._swing_leg_controller.reset_idx(env_ids)
+      if self._use_raibert_controller:
+        self._swing_leg_controller.reset_idx(env_ids)
       self._gait_generator.reset_idx(env_ids)
       self._resample_command(env_ids)
 
     return self._obs_buf, self._privileged_obs_buf
 
+  def _step_direct_joint_control(self, action: torch.Tensor):
+    """Step function for direct joint control (no Raibert controller).
+    
+    The NN outputs 12 joint position offsets that are added to the default
+    standing pose. A PD controller at the motor level tracks these targets.
+    The gait generator still runs to provide phase information for 
+    observations and rewards.
+    """
+    self._last_action = torch.clone(action)
+    action = torch.clip(action, self._action_lb, self._action_ub)
+    sum_reward = torch.zeros(self._num_envs, device=self._device)
+    dones = torch.zeros(self._num_envs, device=self._device, dtype=torch.bool)
+    self._steps_count += 1
+    logs = []
+
+    # Compute desired joint positions: default pose + NN offsets
+    desired_motor_positions = self._default_joint_positions.unsqueeze(0) + action
+
+    # Clamp to joint limits for safety
+    # Go1 joint limits: ab/ad [-1.047, 1.047], hip [-0.663, 2.966], knee [-2.721, -0.837]
+    joint_lower = to_torch([-1.047, -0.663, -2.721] * 4, device=self._device)
+    joint_upper = to_torch([1.047, 2.966, -0.837] * 4, device=self._device)
+    desired_motor_positions = torch.clip(desired_motor_positions,
+                                         joint_lower, joint_upper)
+
+    # Create motor command: pure position control via PD
+    motor_action = MotorCommand(
+        desired_position=desired_motor_positions,
+        kp=torch.ones(self._num_envs, 12, device=self._device) * self._direct_control_kp,
+        desired_velocity=torch.zeros(self._num_envs, 12, device=self._device),
+        kd=torch.ones(self._num_envs, 12, device=self._device) * self._direct_control_kd,
+        desired_extra_torque=torch.zeros(self._num_envs, 12, device=self._device))
+
+    for step in range(
+        max(int(self._config.env_dt / self._robot.control_timestep), 1)):
+      # Gait generator still runs - needed for obs and rewards
+      self._gait_generator.update()
+
+      if self._use_real_robot:
+        self._robot.state_estimator.update_foot_contact(
+            self._gait_generator.desired_contact_state)
+        self._robot.update_desired_foot_contact(
+            self._gait_generator.desired_contact_state)
+
+      logs.append(
+          dict(timestamp=self._robot.time_since_reset,
+               base_position=torch.clone(self._robot.base_position),
+               base_orientation_rpy=torch.clone(
+                   self._robot.base_orientation_rpy),
+               base_velocity=torch.clone(self._robot.base_velocity_body_frame),
+               base_angular_velocity=torch.clone(
+                   self._robot.base_angular_velocity_body_frame),
+               motor_positions=torch.clone(self._robot.motor_positions),
+               motor_velocities=torch.clone(self._robot.motor_velocities),
+               motor_action=motor_action,
+               motor_torques=self._robot.motor_torques,
+               num_clips=self._num_clips,
+               foot_contact_state=self._gait_generator.desired_contact_state,
+               foot_contact_force=self._robot.foot_contact_forces,
+               desired_motor_positions=desired_motor_positions,
+               foot_positions_in_base_frame=self._robot.foot_positions_in_base_frame,
+               env_action=action,
+               env_obs=torch.clone(self._obs_buf) if self._obs_buf is not None else None))
+      if self._use_real_robot:
+        logs[-1]["base_acc"] = np.array(self._robot.raw_state.imu.accelerometer)
+
+      self._robot.step(motor_action)
+
+      self._obs_buf = self._get_observations()
+      self._privileged_obs_buf = self.get_privileged_observations()
+      rewards = self.get_reward()
+      dones = torch.logical_or(dones, self._is_done())
+      sum_reward += rewards * torch.logical_not(dones)
+
+    self._extras["logs"] = logs
+    # Resample commands
+    new_cycle_count = (self._gait_generator.true_phase / (2 * torch.pi)).long()
+    finished_cycle = new_cycle_count > self._cycle_count
+    env_ids_to_resample = finished_cycle.nonzero(as_tuple=False).flatten()
+    self._cycle_count = new_cycle_count
+
+    is_terminal = torch.logical_or(finished_cycle, dones)
+    if is_terminal.any():
+      sum_reward += self.get_terminal_reward(is_terminal, dones)
+    self._resample_command(env_ids_to_resample)
+    if not self._use_real_robot:
+      self.reset_idx(dones.nonzero(as_tuple=False).flatten())
+
+    if self._show_gui:
+      self._robot.render()
+    return self._obs_buf, self._privileged_obs_buf, sum_reward, dones, self._extras
+
   def step(self, action: torch.Tensor):
+    if not self._use_raibert_controller:
+      return self._step_direct_joint_control(action)
+
+    # === ORIGINAL RAIBERT CONTROLLER PATH (unchanged) ===
     self._last_action = torch.clone(action)
     action = torch.clip(action, self._action_lb, self._action_ub)
     sum_reward = torch.zeros(self._num_envs, device=self._device)
@@ -347,7 +563,11 @@ class JumpEnv:
     logs = []
 
     zero = torch.zeros(self._num_envs, device=self._device)
-    gait_action, com_action, foot_action = self._split_action(action)
+    gait_action, com_action, foot_action, alpha = self._split_action(action)
+
+    if alpha is not None:
+        self._swing_leg_controller.set_kp_alpha(alpha)
+
     desired_linear_vel_z = (com_action[:, 2] -
                             self._torque_optimizer.desired_base_position[:, 2]
                            ) / self._config.env_dt
@@ -357,10 +577,15 @@ class JumpEnv:
         self._torque_optimizer.desired_base_orientation_rpy[:, 1]
     ) / self._config.env_dt
     desired_ang_vel_y = desired_ang_vel_y.clip(min=-0., max=0.)
+
+    #DEBUG: Clear previous drawings
+    gym.clear_lines(viewer)
+
     for step in range(
         max(int(self._config.env_dt / self._robot.control_timestep), 1)):
       self._gait_generator.update()
-      self._swing_leg_controller.update()
+      self._swing_leg_controller.update(self._desired_velocity)
+
       if self._use_real_robot:
         self._robot.state_estimator.update_foot_contact(
             self._gait_generator.desired_contact_state)  # pytype: disable=attribute-error
@@ -398,7 +623,6 @@ class JumpEnv:
         base_yaw = self._robot.base_orientation_rpy[:, 2]
         cos_yaw = torch.cos(base_yaw)[:, None]
         sin_yaw = torch.sin(base_yaw)[:, None]
-        # foot_action[:, :, 0] *= -1 # DEBUG HACK
         foot_action_world = torch.clone(foot_action)
         foot_action_world[:, :, 0] = (cos_yaw * foot_action[:, :, 0] -
                                       sin_yaw * foot_action[:, :, 1])
@@ -423,10 +647,7 @@ class JumpEnv:
                motor_action=motor_action,
                motor_torques=self._robot.motor_torques,
                num_clips=self._num_clips,
-               foot_contact_state=self._gait_generator.desired_contact_state,
-               foot_contact_force=self._robot.foot_contact_forces,
-               desired_swing_foot_position=desired_foot_positions,
-               desired_acc_body_frame=self._desired_acc,
+               foot_contact_state=self._gait_generator.desired_contact_state, foot_contact_force=self._robot.foot_contact_forces, desired_swing_foot_position=desired_foot_positions, desired_acc_body_frame=self._desired_acc,
                solved_acc_body_frame=self._solved_acc,
                foot_positions_in_base_frame=self._robot.
                foot_positions_in_base_frame,
@@ -443,30 +664,6 @@ class JumpEnv:
       dones = torch.logical_or(dones, self._is_done())
       sum_reward += rewards * torch.logical_not(dones)
 
-    # print(f"Time: {self._robot.time_since_reset}")
-    # print(f"Gait: {gait_action}")
-    # print(f"Foot: {foot_action}")
-    # print(f"Phase: {self._obs_buf[:, 3]}")
-    # print(f"Desired contact: {self._gait_generator.desired_contact_state}")
-    # print(f"Desired Position: {self._torque_optimizer.desired_base_position}")
-    # print(f"Current Position: {self._robot.base_position}")
-    # print(
-    #     f"Desired Velocity: {self._torque_optimizer.desired_linear_velocity}")
-    # print(f"Current Velocity: {self._robot.base_velocity_world_frame}")
-    # print(
-    #     f"Desired RPY: {self._torque_optimizer.desired_base_orientation_rpy}")
-    # print(f"Current RPY: {self._robot.base_orientation_rpy}")
-    # print(
-    #     f"Desired Angular Vel: {self._torque_optimizer.desired_angular_velocity}"
-    # )
-    # print(
-    #     f"Current Angular vel: {self._robot.base_angular_velocity_body_frame}")
-    # print(f"Desired Acc: {self._desired_acc}")
-    # print(f"Solved Acc: {self._solved_acc}")
-    # ans = input("Any Key...")
-    # if ans in ["Y", "y"]:
-    #   import pdb
-    #   pdb.set_trace()
     self._extras["logs"] = logs
     # Resample commands
     new_cycle_count = (self._gait_generator.true_phase / (2 * torch.pi)).long()
@@ -477,15 +674,26 @@ class JumpEnv:
     is_terminal = torch.logical_or(finished_cycle, dones)
     if is_terminal.any():
       sum_reward += self.get_terminal_reward(is_terminal, dones)
-      # print(self.get_terminal_reward(is_terminal))
-      # import pdb
-      # pdb.set_trace()
     self._resample_command(env_ids_to_resample)
     if not self._use_real_robot:
       self.reset_idx(dones.nonzero(as_tuple=False).flatten())
-    # if dones.any():
-    #   import pdb
-    #   pdb.set_trace()
+
+    # DEBUG: View projected rectagles on the ground
+    for foot_id in range(4):
+        foot_pos = desired_foot_positions[env_id, foot_id].cpu().numpy()
+        
+        # Different color for each foot
+        colors = [
+            [1, 0, 0],  # Front-left: Red
+            [0, 1, 0],  # Front-right: Green
+            [0, 0, 1],  # Rear-left: Blue
+            [1, 1, 0]   # Rear-right: Yellow
+        ]
+        
+        # Draw box at foot position with 0.35m length x 0.6m width
+        self._draw_box(self._gym, self._viewer, 
+                center=(foot_pos[0], foot_pos[1], foot_pos[2], 0.175, 0.3),
+                color=colors[foot_id])
 
     if self._show_gui:
       self._robot.render()
@@ -499,11 +707,6 @@ class JumpEnv:
       self._jumping_distance = torch.tensor(
           [[next(self._jumping_distance_schedule), 0]], device=self._device)
     else:
-      # self._jumping_distance[env_ids] = torch.where(
-      #     torch_rand_float(self._config.goal_lb,
-      #                      self._config.goal_ub, [env_ids.shape[0], 2],
-      #                      device=self._device) < 0.65, 0.3, 1.)
-
       self._jumping_distance[env_ids] = torch_rand_float(self._config.goal_lb,
                                                          self._config.goal_ub,
                                                          [env_ids.shape[0], 2],
@@ -516,6 +719,10 @@ class JumpEnv:
     self._desired_landing_position[env_ids, 2] = 0.268
 
   def _get_observations(self):
+    if not self._use_raibert_controller:
+      return self._get_observations_direct()
+
+    # === ORIGINAL OBSERVATION PATH (unchanged) ===
     distance_to_goal = self._desired_landing_position - self._robot.base_position_world
 
     distance_to_goal_local = world_frame_to_gravity_frame(
@@ -525,6 +732,7 @@ class JumpEnv:
         torch.sin(self._gait_generator.true_phase),
     ),
                             dim=1)
+    velocity_command = self._desired_velocity[:, :2]
 
     robot_obs = torch.concatenate(
         (
@@ -538,17 +746,75 @@ class JumpEnv:
             self._robot.base_angular_velocity_body_frame[:, 1:2],
             self._robot.base_angular_velocity_body_frame[:,
                                                          2:3],  # Base yaw rate
-            # self._robot.motor_positions,
-            # self._robot.motor_velocities,
             self._robot.foot_positions_in_base_frame.reshape(
                 (self._num_envs, 12)),
         ),
         dim=1)
-    obs = torch.concatenate((distance_to_goal_local, phase_obs, robot_obs),
+    obs = torch.concatenate((distance_to_goal_local, phase_obs, velocity_command, robot_obs),
                             dim=1)
     if self._config.get("observation_noise",
                         None) is not None and (not self._use_real_robot):
       obs += torch.randn_like(obs) * self._config.observation_noise
+    return obs
+
+  def _get_observations_direct(self):
+    """Observations for direct joint control mode.
+    
+    Includes: distance_to_goal(3), phase(2), velocity_cmd(2),
+              base_state(9), desired_contact_state(4),
+              motor_positions(12), motor_velocities(12),
+              foot_positions_in_base_frame(12)
+    """
+    distance_to_goal = self._desired_landing_position - self._robot.base_position_world
+    distance_to_goal_local = world_frame_to_gravity_frame(
+        self._robot.base_orientation_rpy[:, 2], distance_to_goal)
+
+    phase_obs = torch.stack((
+        torch.cos(self._gait_generator.true_phase),
+        torch.sin(self._gait_generator.true_phase),
+    ), dim=1)
+
+    velocity_command = self._desired_velocity[:, :2]
+
+    # Base state - same as original but WITHOUT zeroing out roll/vy/wx
+    # The NN needs full state information for direct control
+    base_state = torch.concatenate((
+        self._robot.base_position[:, 2:],              # height (1)
+        self._robot.base_orientation_rpy[:, 0:1],      # roll (1)
+        self._robot.base_orientation_rpy[:, 1:2],      # pitch (1)
+        self._robot.base_velocity_body_frame[:, 0:1],  # vx (1)
+        self._robot.base_velocity_body_frame[:, 1:2],  # vy (1)
+        self._robot.base_velocity_body_frame[:, 2:3],  # vz (1)
+        self._robot.base_angular_velocity_body_frame[:, 0:1],  # wx (1)
+        self._robot.base_angular_velocity_body_frame[:, 1:2],  # wy (1)
+        self._robot.base_angular_velocity_body_frame[:, 2:3],  # wz (1)
+    ), dim=1)
+
+    # Desired contact state from gait generator (crucial for gait following)
+    desired_contact = self._gait_generator.desired_contact_state.float()
+
+    # Proprioceptive feedback (essential for direct joint control)
+    motor_pos = self._robot.motor_positions
+    motor_vel = self._robot.motor_velocities
+
+    foot_pos = self._robot.foot_positions_in_base_frame.reshape(
+        (self._num_envs, 12))
+
+    obs = torch.concatenate((
+        distance_to_goal_local,  # 3
+        phase_obs,               # 2
+        velocity_command,        # 2
+        base_state,              # 9
+        desired_contact,         # 4
+        motor_pos,               # 12
+        motor_vel,               # 12
+        foot_pos,                # 12
+    ), dim=1)
+
+    if self._config.get("observation_noise",
+                        None) is not None and (not self._use_real_robot):
+      obs += torch.randn_like(obs) * self._config.observation_noise
+
     return obs
 
   def get_observations(self):
@@ -615,12 +881,72 @@ class JumpEnv:
       limb_contact = torch.sum(limb_contact, dim=1)
       is_unsafe = torch.logical_or(is_unsafe, limb_contact > 0)
 
-    # print(self._robot.base_position[:, 2])
-    # input("Any Key...")
-    # if is_unsafe.any():
-    #   import pdb
-    #   pdb.set_trace()
     return torch.logical_or(self._episode_terminated(), is_unsafe)
+
+  def _draw_box(self, gym, viewer, center=None, corners=None, color=[1, 0, 0]):
+      """
+      Draw a rectangular box on the ground plane (z=0)
+      
+      Args:
+          gym: Isaac Gym instance
+          viewer: Viewer instance
+          center: tuple (x, y, z, half_length, half_width) - center point and dimensions
+                  OR tuple (x, y, half_length, half_width) - assumes z=0
+          corners: list of 4 corner points [(x1,y1,z1), (x2,y2,z2), ...] in absolute coords
+                   If z is not provided, assumes z=0 for each corner
+          color: RGB color values [r, g, b] from 0 to 1
+      
+      Usage:
+          # Option 1: Specify center and dimensions
+          draw_box(gym, viewer, center=(1.0, 2.0, 0.5, 0.03, 0.05))
+          draw_box(gym, viewer, center=(1.0, 2.0, 0.03, 0.05))  # z=0 assumed
+          
+          # Option 2: Specify absolute corner positions
+          draw_box(gym, viewer, corners=[(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)])
+          draw_box(gym, viewer, corners=[(0, 0), (1, 0), (1, 1), (0, 1)])  # z=0 assumed
+      """
+      
+      if center is not None:
+          # Parse center specification
+          if len(center) == 5:
+              x, y, z, half_length, half_width = center
+          elif len(center) == 4:
+              x, y, half_length, half_width = center
+              z = 0
+          else:
+              raise ValueError("center must be (x, y, z, half_length, half_width) or (x, y, half_length, half_width)")
+          
+          # Calculate corners from center and dimensions
+          corners = [
+              [x - half_length, y - half_width, z],
+              [x + half_length, y - half_width, z],
+              [x + half_length, y + half_width, z],
+              [x - half_length, y + half_width, z]
+          ]
+      
+      elif corners is not None:
+          # Use provided corners, ensure z=0 if not specified
+          corners = [list(c) + [0] * (3 - len(c)) for c in corners]
+          
+          if len(corners) != 4:
+              raise ValueError("Must provide exactly 4 corner points")
+      
+      else:
+          raise ValueError("Must provide either 'center' or 'corners'")
+      
+      # Create line segments connecting the corners
+      lines = []
+      for i in range(4):
+          start = corners[i]
+          end = corners[(i + 1) % 4]
+          lines.append(start + end)  # [x1, y1, z1, x2, y2, z2]
+      
+      # Convert to numpy arrays
+      lines = np.array(lines, dtype=np.float32)
+      colors = np.array([color] * 4, dtype=np.float32)
+      
+      # Add lines to viewer
+      gym.add_lines(viewer, None, lines.shape[0], lines, colors)
 
   @property
   def device(self):
