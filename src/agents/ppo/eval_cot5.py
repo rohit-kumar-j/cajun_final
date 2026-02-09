@@ -4,11 +4,12 @@ from absl import flags
 
 from datetime import datetime
 import os
-import cv
+import cv2
 import signal
 import sys
 import time
 
+from isaacgym import gymapi
 from isaacgym.torch_utils import to_torch  # pylint: disable=unused-import
 from rsl_rl.runners import OnPolicyRunner
 import torch
@@ -255,14 +256,6 @@ def main(argv):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     output_dir = os.path.join(root_path, f"detailed_{gait_name}_data_{timestamp}")
     _exit_state['output_dir'] = output_dir
-
-    # Video recording setup
-    video_writer = None
-    if FLAGS.record_video:
-        os.makedirs(output_dir, exist_ok=True)
-        video_path = os.path.join(output_dir, f"detailed_{gait_name}_data_{timestamp}_{FLAGS.render_fps}fps.mp4")
-        print(f"Video will be saved to: {video_path}")
-
     
     print(f"Gait: {gait_name}")
     print(f"Output: {output_dir}")
@@ -274,11 +267,14 @@ def main(argv):
         config.environment.gait.desired_velocity = torch.tensor([velocity_schedule[0].item(), 0, 0])
         config.environment.max_jumps = 100000
 
-    show_gui_actual = FLAGS.show_gui and not FLAGS.record_video
+    # Create environment - force show_gui=True for video recording (needs viewer for camera)
+    show_gui_actual = FLAGS.show_gui or FLAGS.record_video
     env = config.env_class(num_envs=FLAGS.num_envs, device=device, config=config.environment,
                            show_gui=show_gui_actual, use_real_robot=FLAGS.use_real_robot)
-                           # show_gui=FLAGS.show_gui, use_real_robot=FLAGS.use_real_robot)
     env = env_wrappers.RangeNormalize(env)
+    
+    # Get unwrapped env for video recording
+    unwrapped_env = env._env
     
     if FLAGS.use_real_robot:
         env.robot.state_estimator.use_external_contact_estimator = (not FLAGS.use_contact_sensor)
@@ -287,6 +283,27 @@ def main(argv):
     runner.load(policy_path)
     policy = runner.get_inference_policy()
     runner.alg.actor_critic.train()
+
+    # Setup camera for video recording
+    camera_handle = None
+    video_writer = None
+    video_path = None
+    if FLAGS.record_video:
+        camera_props = gymapi.CameraProperties()
+        camera_props.width = 1920
+        camera_props.height = 1080
+        camera_props.enable_tensors = True
+        
+        camera_handle = unwrapped_env._gym.create_camera_sensor(unwrapped_env._envs[0], camera_props)
+        
+        # Position camera to get a good view
+        cam_pos = gymapi.Vec3(2, 2, 1)
+        cam_target = gymapi.Vec3(0, 0, 0.5)
+        unwrapped_env._gym.set_camera_location(camera_handle, unwrapped_env._envs[0], cam_pos, cam_target)
+        
+        os.makedirs(output_dir, exist_ok=True)
+        video_path = os.path.join(output_dir, f"detailed_{gait_name}_data_{timestamp}_{FLAGS.render_fps}fps.mp4")
+        print(f"Video will be saved to: {video_path}")
 
     state, _ = env.reset()
     
@@ -315,8 +332,8 @@ def main(argv):
     _exit_state['data_arrays'] = data_arrays
     _exit_state['start_time'] = time.time()
     
-    # Initialize plotter
-    plotter = FastContactPlotter(window_duration=0.5) if FLAGS.enable_plotting else None
+    # Initialize plotter (disable if recording video)
+    plotter = FastContactPlotter(window_duration=0.5) if (FLAGS.enable_plotting and not FLAGS.record_video) else None
 
     print(f"Starting simulation (max {FLAGS.max_steps} steps)...")
     
@@ -336,26 +353,18 @@ def main(argv):
 
                 # Extract data (minimize CPU transfers by batching)
                 t = env.robot.time_since_reset.item()
-                contacts = env.robot.foot_contacts[0].cpu().numpy()  # [FR, FL, RR, RL]
-                base_pos = env.robot.base_position[0].cpu().numpy()
-                base_vel = env.robot.base_velocity_world_frame[0].cpu().numpy()
-                base_rpy = env.robot.base_orientation_rpy[0].cpu().numpy()
-                joint_pos = env.robot.motor_positions[0].cpu().numpy()
-                joint_vel = env.robot.motor_velocities[0].cpu().numpy()
-                joint_tau = env.robot.motor_torques[0].cpu().numpy()
-
+                
                 # Video recording - capture frames at specified FPS
                 if FLAGS.record_video and (t - last_frame_time) >= frame_interval:
-                    # Get camera image from Isaac Gym
-                    env._gym.render_all_camera_sensors(env._sim)
+                    # Render camera
+                    unwrapped_env._gym.render_all_camera_sensors(unwrapped_env._sim)
+                    unwrapped_env._gym.start_access_image_tensors(unwrapped_env._sim)
                     
-                    # Get image from viewer camera
-                    img = env._gym.get_camera_image(env._sim, env._envs[0], env._gym.get_viewer_camera_handle(env.viewer), gymapi.IMAGE_COLOR)
+                    # Get image from camera
+                    img = unwrapped_env._gym.get_camera_image(unwrapped_env._sim, unwrapped_env._envs[0], camera_handle, gymapi.IMAGE_COLOR)
+                    img = img.reshape((1080, 1920, 4))[:, :, :3]  # RGBA to RGB
                     
-                    # Reshape image (Isaac Gym returns flat array)
-                    img = img.reshape(img.shape[0], -1, 4)  # RGBA format
-                    img = img[:, :, :3]  # Convert to RGB
-                    img = np.ascontiguousarray(img)
+                    unwrapped_env._gym.end_access_image_tensors(unwrapped_env._sim)
                     
                     # Initialize video writer on first frame
                     if video_writer is None:
@@ -367,7 +376,14 @@ def main(argv):
                     # Write frame (convert RGB to BGR for OpenCV)
                     video_writer.write(cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
                     last_frame_time = t
-
+                
+                contacts = env.robot.foot_contacts[0].cpu().numpy()  # [FR, FL, RR, RL]
+                base_pos = env.robot.base_position[0].cpu().numpy()
+                base_vel = env.robot.base_velocity_world_frame[0].cpu().numpy()
+                base_rpy = env.robot.base_orientation_rpy[0].cpu().numpy()
+                joint_pos = env.robot.motor_positions[0].cpu().numpy()
+                joint_vel = env.robot.motor_velocities[0].cpu().numpy()
+                joint_tau = env.robot.motor_torques[0].cpu().numpy()
                 
                 # Foot forces
                 try:
@@ -424,12 +440,12 @@ def main(argv):
         if plotter:
             plotter.close()
         raise
+    
     # Normal completion
     if video_writer is not None:
         video_writer.release()
         print(f"Video saved: {video_path}")
     
-    # Normal completion
     save_data_on_exit(reason="complete")
     
     if plotter:
