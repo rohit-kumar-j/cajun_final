@@ -579,7 +579,7 @@ class JumpEnv:
     desired_ang_vel_y = desired_ang_vel_y.clip(min=-0., max=0.)
 
     #DEBUG: Clear previous drawings
-    self._gym.clear_lines(viewer)
+    self._gym.clear_lines(self._viewer)
 
     for step in range(
         max(int(self._config.env_dt / self._robot.control_timestep), 1)):
