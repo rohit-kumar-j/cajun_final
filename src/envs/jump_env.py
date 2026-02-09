@@ -629,7 +629,7 @@ class JumpEnv:
 
       # DEBUG: View projected rectagles on the ground
       # if self._show_gui and step == 0:  # Only draw once per env.step(), not every control loop iteration
-      if (self._show_gui or self._record_video) and step == 0:
+      if (self._show_gui or self._record_video):
         self._gym.clear_lines(self._viewer)
         
         # Draw desired foot landing positions
