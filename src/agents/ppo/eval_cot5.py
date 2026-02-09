@@ -258,6 +258,10 @@ def main(argv):
     
     print(f"Gait: {gait_name}")
     print(f"Output: {output_dir}")
+    
+    if FLAGS.record_video:
+        print("WARNING: Video recording is not yet implemented due to Isaac Gym API limitations.")
+        print("Running without video recording...")
 
     with config.unlocked():
         velocity_up = torch.linspace(0.5, 6.0, 500)
@@ -266,14 +270,9 @@ def main(argv):
         config.environment.gait.desired_velocity = torch.tensor([velocity_schedule[0].item(), 0, 0])
         config.environment.max_jumps = 100000
 
-    # Create environment - always need GUI for rendering
-    show_gui_actual = FLAGS.show_gui or FLAGS.record_video
     env = config.env_class(num_envs=FLAGS.num_envs, device=device, config=config.environment,
-                           show_gui=show_gui_actual, use_real_robot=FLAGS.use_real_robot)
+                           show_gui=FLAGS.show_gui, use_real_robot=FLAGS.use_real_robot)
     env = env_wrappers.RangeNormalize(env)
-    
-    # Get unwrapped env for video recording
-    unwrapped_env = env._env
     
     if FLAGS.use_real_robot:
         env.robot.state_estimator.use_external_contact_estimator = (not FLAGS.use_contact_sensor)
@@ -282,14 +281,6 @@ def main(argv):
     runner.load(policy_path)
     policy = runner.get_inference_policy()
     runner.alg.actor_critic.train()
-
-    # Setup video recording
-    video_writer = None
-    video_path = None
-    if FLAGS.record_video:
-        os.makedirs(output_dir, exist_ok=True)
-        video_path = os.path.join(output_dir, f"detailed_{gait_name}_data_{timestamp}_{FLAGS.render_fps}fps.mp4")
-        print(f"Video will be saved to: {video_path}")
 
     state, _ = env.reset()
     
@@ -318,16 +309,14 @@ def main(argv):
     _exit_state['data_arrays'] = data_arrays
     _exit_state['start_time'] = time.time()
     
-    # Initialize plotter (disable if recording video)
-    plotter = FastContactPlotter(window_duration=0.5) if (FLAGS.enable_plotting and not FLAGS.record_video) else None
+    # Initialize plotter
+    plotter = FastContactPlotter(window_duration=0.5) if FLAGS.enable_plotting else None
 
     print(f"Starting simulation (max {FLAGS.max_steps} steps)...")
     
     steps_count = 0
     data_count = 0
     velocity_index = 0
-    frame_interval = 1.0 / FLAGS.render_fps
-    last_frame_time = 0
     
     try:
         with torch.inference_mode():
@@ -339,33 +328,6 @@ def main(argv):
 
                 # Extract data (minimize CPU transfers by batching)
                 t = env.robot.time_since_reset.item()
-                
-                # Video recording - capture frames from viewer at specified FPS
-                if FLAGS.record_video and (t - last_frame_time) >= frame_interval:
-                    # Get viewer camera handle
-                    cam_handle = unwrapped_env._gym.get_viewer_camera_handle(unwrapped_env._viewer)
-                    
-                    # Get image from viewer
-                    img = unwrapped_env._gym.get_camera_image(unwrapped_env._sim, unwrapped_env._envs[0], cam_handle, gymapi.IMAGE_COLOR)
-                    
-                    # Reshape to proper dimensions
-                    # Isaac Gym viewer images come in various sizes, get dimensions from the image
-                    img_h = unwrapped_env._gym.get_camera_image_height(unwrapped_env._sim, unwrapped_env._envs[0], cam_handle)
-                    img_w = unwrapped_env._gym.get_camera_image_width(unwrapped_env._sim, unwrapped_env._envs[0], cam_handle)
-                    
-                    img = img.reshape((img_h, img_w, 4))[:, :, :3]  # RGBA to RGB
-                    
-                    # Initialize video writer on first frame
-                    if video_writer is None:
-                        height, width = img.shape[:2]
-                        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                        video_writer = cv2.VideoWriter(video_path, fourcc, FLAGS.render_fps, (width, height))
-                        print(f"Initialized video writer: {width}x{height} @ {FLAGS.render_fps}fps")
-                    
-                    # Write frame (convert RGB to BGR for OpenCV)
-                    video_writer.write(cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
-                    last_frame_time = t
-                
                 contacts = env.robot.foot_contacts[0].cpu().numpy()  # [FR, FL, RR, RL]
                 base_pos = env.robot.base_position[0].cpu().numpy()
                 base_vel = env.robot.base_velocity_world_frame[0].cpu().numpy()
@@ -422,19 +384,12 @@ def main(argv):
         print(f"\nException: {e}")
         import traceback
         traceback.print_exc()
-        if video_writer is not None:
-            video_writer.release()
-            print(f"Video saved (partial): {video_path}")
         save_data_on_exit(reason="exception")
         if plotter:
             plotter.close()
         raise
     
     # Normal completion
-    if video_writer is not None:
-        video_writer.release()
-        print(f"Video saved: {video_path}")
-    
     save_data_on_exit(reason="complete")
     
     if plotter:
