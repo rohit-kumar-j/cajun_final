@@ -324,6 +324,7 @@ def main(argv):
     data_count = 0
     velocity_index = 0
     frame_interval = 1.0 / FLAGS.render_fps
+    last_frame_time = 0
     
     try:
         with torch.inference_mode():
