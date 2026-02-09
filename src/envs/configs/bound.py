@@ -13,6 +13,8 @@ def get_config():
                                         dtype=np.float32) * (2 * np.pi)
   gait_config.swing_ratio = np.array([0.6, 0.6, 0.6, 0.6], dtype=np.float32)
   config.gait = gait_config
+  config.velocity_lb = 0.3 # m/s
+  config.velocity_ub = 6.0 # m/s
 
   config.goal_lb = torch.tensor([0.3, 0.],
                                 dtype=torch.float)  # Lin_x, Lin_y, Rot_z
