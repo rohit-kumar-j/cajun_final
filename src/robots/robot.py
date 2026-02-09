@@ -282,7 +282,7 @@ class Robot:
         sys.exit()
 
       mean_pos = torch.min(self.base_position_world,
-                           dim=0)[0].cpu().numpy() + np.array([-2.5, -2.5, 2.5])
+                           dim=0)[0].cpu().numpy() + np.array([0., -2.0, 0.2])
       # mean_pos = torch.min(self.base_position_world,
       #                      dim=0)[0].cpu().numpy() + np.array([0.5, -1., 0.])
       target_pos = torch.mean(self.base_position_world,
