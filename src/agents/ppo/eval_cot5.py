@@ -227,7 +227,6 @@ def get_latest_policy_path(logdir):
             return os.path.join(logdir, e)
     raise ValueError("No Valid Policy Found.")
 
-
 def main(argv):
     global _exit_state
     del argv
@@ -267,7 +266,7 @@ def main(argv):
         config.environment.gait.desired_velocity = torch.tensor([velocity_schedule[0].item(), 0, 0])
         config.environment.max_jumps = 100000
 
-    # Create environment - force show_gui=True for video recording (needs viewer for camera)
+    # Create environment - always need GUI for rendering
     show_gui_actual = FLAGS.show_gui or FLAGS.record_video
     env = config.env_class(num_envs=FLAGS.num_envs, device=device, config=config.environment,
                            show_gui=show_gui_actual, use_real_robot=FLAGS.use_real_robot)
@@ -284,23 +283,10 @@ def main(argv):
     policy = runner.get_inference_policy()
     runner.alg.actor_critic.train()
 
-    # Setup camera for video recording
-    camera_handle = None
+    # Setup video recording
     video_writer = None
     video_path = None
     if FLAGS.record_video:
-        camera_props = gymapi.CameraProperties()
-        camera_props.width = 1920
-        camera_props.height = 1080
-        camera_props.enable_tensors = True
-        
-        camera_handle = unwrapped_env._gym.create_camera_sensor(unwrapped_env._envs[0], camera_props)
-        
-        # Position camera to get a good view
-        cam_pos = gymapi.Vec3(2, 2, 1)
-        cam_target = gymapi.Vec3(0, 0, 0.5)
-        unwrapped_env._gym.set_camera_location(camera_handle, unwrapped_env._envs[0], cam_pos, cam_target)
-        
         os.makedirs(output_dir, exist_ok=True)
         video_path = os.path.join(output_dir, f"detailed_{gait_name}_data_{timestamp}_{FLAGS.render_fps}fps.mp4")
         print(f"Video will be saved to: {video_path}")
@@ -354,17 +340,20 @@ def main(argv):
                 # Extract data (minimize CPU transfers by batching)
                 t = env.robot.time_since_reset.item()
                 
-                # Video recording - capture frames at specified FPS
+                # Video recording - capture frames from viewer at specified FPS
                 if FLAGS.record_video and (t - last_frame_time) >= frame_interval:
-                    # Render camera
-                    unwrapped_env._gym.render_all_camera_sensors(unwrapped_env._sim)
-                    unwrapped_env._gym.start_access_image_tensors(unwrapped_env._sim)
+                    # Get viewer camera handle
+                    cam_handle = unwrapped_env._gym.get_viewer_camera_handle(unwrapped_env._viewer)
                     
-                    # Get image from camera
-                    img = unwrapped_env._gym.get_camera_image(unwrapped_env._sim, unwrapped_env._envs[0], camera_handle, gymapi.IMAGE_COLOR)
-                    img = img.reshape((1080, 1920, 4))[:, :, :3]  # RGBA to RGB
+                    # Get image from viewer
+                    img = unwrapped_env._gym.get_camera_image(unwrapped_env._sim, unwrapped_env._envs[0], cam_handle, gymapi.IMAGE_COLOR)
                     
-                    unwrapped_env._gym.end_access_image_tensors(unwrapped_env._sim)
+                    # Reshape to proper dimensions
+                    # Isaac Gym viewer images come in various sizes, get dimensions from the image
+                    img_h = unwrapped_env._gym.get_camera_image_height(unwrapped_env._sim, unwrapped_env._envs[0], cam_handle)
+                    img_w = unwrapped_env._gym.get_camera_image_width(unwrapped_env._sim, unwrapped_env._envs[0], cam_handle)
+                    
+                    img = img.reshape((img_h, img_w, 4))[:, :, :3]  # RGBA to RGB
                     
                     # Initialize video writer on first frame
                     if video_writer is None:
@@ -452,7 +441,6 @@ def main(argv):
         print("Press Enter to close...")
         input()
         plotter.close()
-
 
 if __name__ == "__main__":
     app.run(main)
