@@ -8,6 +8,8 @@ import cv2
 import signal
 import sys
 import time
+import shutil
+import subprocess
 
 from isaacgym import gymapi
 from isaacgym.torch_utils import to_torch  # pylint: disable=unused-import
@@ -30,6 +32,9 @@ _exit_state = {
     'start_time': None,
     'data_saved': False,
     'gait_name': 'unknown',
+    'frames_dir': None,
+    'video_path': None,
+    'frame_count': 0,
 }
 
 
@@ -85,6 +90,46 @@ def save_data_to_matlab_format(output_dir, data_arrays, data_count):
     return True
 
 
+def create_video_from_frames(frames_dir, video_path, fps, frame_count):
+    """Create video from saved frames using ffmpeg."""
+    if frame_count == 0:
+        print("No frames to create video from.")
+        return False
+    
+    print(f"\nCreating video from {frame_count} frames...")
+    try:
+        cmd = [
+            'ffmpeg', '-y', 
+            '-framerate', str(fps),
+            '-i', os.path.join(frames_dir, 'frame_%06d.png'),
+            '-c:v', 'libx264', 
+            '-preset', 'fast',  # Faster encoding
+            '-crf', '23',  # Default quality
+            '-pix_fmt', 'yuv420p',
+            video_path
+        ]
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        print(f"✓ Video saved: {video_path}")
+        
+        # Delete frames to save space
+        shutil.rmtree(frames_dir)
+        print(f"✓ Cleaned up temporary frames from: {frames_dir}")
+        return True
+        
+    except subprocess.CalledProcessError as e:
+        print(f"✗ Error creating video (ffmpeg failed): {e.stderr}")
+        print(f"  Frames are preserved in: {frames_dir}")
+        return False
+    except FileNotFoundError:
+        print(f"✗ Error: ffmpeg not found. Install with: sudo apt-get install ffmpeg")
+        print(f"  Frames are preserved in: {frames_dir}")
+        return False
+    except Exception as e:
+        print(f"✗ Unexpected error creating video: {e}")
+        print(f"  Frames are preserved in: {frames_dir}")
+        return False
+
+
 def save_data_on_exit(reason="unknown"):
     """Save all collected data on any exit condition."""
     global _exit_state
@@ -100,6 +145,16 @@ def save_data_on_exit(reason="unknown"):
     elapsed = time.time() - _exit_state['start_time'] if _exit_state['start_time'] else 0
     print(f"Steps: {_exit_state['steps_count']}, Time: {elapsed:.2f}s, Samples: {_exit_state['data_count']}")
     
+    # Create video if frames were captured
+    if _exit_state['frames_dir'] and _exit_state['frame_count'] > 0:
+        create_video_from_frames(
+            _exit_state['frames_dir'], 
+            _exit_state['video_path'], 
+            FLAGS.render_fps,
+            _exit_state['frame_count']
+        )
+    
+    # Save MATLAB data
     if _exit_state['data_count'] > 0 and _exit_state['data_arrays'] is not None:
         try:
             save_data_to_matlab_format(_exit_state['output_dir'], _exit_state['data_arrays'], _exit_state['data_count'])
@@ -291,6 +346,11 @@ def main(argv):
         frames_dir = os.path.join(output_dir, "frames")
         os.makedirs(frames_dir, exist_ok=True)
         video_path = os.path.join(output_dir, f"detailed_{gait_name}_data_{timestamp}_{FLAGS.render_fps}fps.mp4")
+        
+        # Store in global state for cleanup on exit
+        _exit_state['frames_dir'] = frames_dir
+        _exit_state['video_path'] = video_path
+        
         print(f"Frames will be saved to: {frames_dir}")
         print(f"Video will be created at: {video_path}")
 
@@ -332,6 +392,9 @@ def main(argv):
     frame_interval = 1.0 / FLAGS.render_fps
     last_frame_time = 0
     
+    # Pre-allocate frame path string buffer for speed
+    frame_path_template = os.path.join(frames_dir, "frame_{:06d}.png") if FLAGS.record_video else None
+    
     try:
         with torch.inference_mode():
             while steps_count < FLAGS.max_steps:
@@ -347,7 +410,7 @@ def main(argv):
                 if FLAGS.record_video and (t - last_frame_time) >= frame_interval:
                     try:
                         # Write screenshot using Isaac Gym's built-in function
-                        frame_path = os.path.join(frames_dir, f"frame_{frame_count:06d}.png")
+                        frame_path = frame_path_template.format(frame_count)
                         unwrapped_env._gym.write_viewer_image_to_file(unwrapped_env._viewer, frame_path)
                         frame_count += 1
                         last_frame_time = t
@@ -355,7 +418,8 @@ def main(argv):
                         if frame_count % 100 == 0:
                             print(f"Captured {frame_count} frames...")
                     except Exception as e:
-                        print(f"Frame capture error: {e}")
+                        if frame_count == 0:  # Only print error once
+                            print(f"Frame capture error: {e}")
                 
                 contacts = env.robot.foot_contacts[0].cpu().numpy()
                 base_pos = env.robot.base_position[0].cpu().numpy()
@@ -394,6 +458,7 @@ def main(argv):
                 data_count += 1
                 _exit_state['data_count'] = data_count
                 _exit_state['steps_count'] = steps_count
+                _exit_state['frame_count'] = frame_count
 
                 # Update plotter
                 if plotter is not None:
@@ -418,29 +483,7 @@ def main(argv):
             plotter.close()
         raise
     
-    # Create video from frames
-    if FLAGS.record_video and frame_count > 0:
-        print(f"\nCreating video from {frame_count} frames...")
-        try:
-            # Use ffmpeg to create video
-            import subprocess
-            cmd = [
-                'ffmpeg', '-y', '-framerate', str(FLAGS.render_fps),
-                '-i', os.path.join(frames_dir, 'frame_%06d.png'),
-                '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
-                video_path
-            ]
-            subprocess.run(cmd, check=True)
-            print(f"Video saved: {video_path}")
-            
-            # Optionally delete frames to save space
-            #import shutil
-            #shutil.rmtree(frames_dir)
-            #print(f"Cleaned up temporary frames")
-        except Exception as e:
-            print(f"Error creating video: {e}")
-            print(f"Frames are saved in: {frames_dir}")
-    
+    # Normal completion - save everything
     save_data_on_exit(reason="complete")
     
     if plotter:
