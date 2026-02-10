@@ -1,0 +1,4 @@
+# Gait: unknown_gait
+# Samples: 187
+# dt: 0.002s (500 Hz)
+# Duration: 0.37s
