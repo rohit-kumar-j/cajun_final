@@ -20,7 +20,7 @@ from src.robots import go1, go1_robot
 from src.robots.motors import MotorControlMode, MotorCommand
 
 
-@torch.jit.script
+# @torch.jit.script
 def torch_rand_float(lower, upper, shape: Sequence[int], device: str):
   return (upper - lower) * torch.rand(*shape, device=device) + lower
 
