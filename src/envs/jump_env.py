@@ -539,6 +539,8 @@ class JumpEnv:
         self._gym.clear_lines(self._viewer)
                                     
         env_id = 0
+        robot_pos = self._robot.base_position[env_id].cpu().numpy()
+
         for foot_id in range(4):
            foot_pos = desired_foot_positions[env_id, foot_id].cpu().numpy()
             
@@ -552,9 +554,11 @@ class JumpEnv:
                [0.3, 0.3, 1],  # RR: Bright Blue
                [1, 1, 0.2]     # RL: Bright Yellow
            ]
+           world_x = foot_pos[0] + robot_pos[0]
+           world_y = foot_pos[1] + robot_pos[1]
            
            self._draw_box(self._gym, self._viewer, 
-                center=(foot_pos[0], foot_pos[1], 0.02, length, width),
+                center=(world_x, world_y, 0.02, length, width),
                 color=colors[foot_id],
                 thickness=5)
 
