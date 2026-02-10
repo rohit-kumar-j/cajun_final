@@ -294,11 +294,11 @@ class JumpEnv:
           self._action_ub = torch.concatenate([base_action_ub, alpha_ub])
       else:
           # Add learned foot placement rectangles: [x, y, w, l] * 4 feet
-          rect_lb = torch.tensor([-0.3, -0.15, 0.05, 0.05] * 4, device=self._device)
-          rect_ub = torch.tensor([0.3, 0.15, 0.6, 0.6] * 4, device=self._device)
+          landing_pos_lb = torch.tensor([-0.4, -0.35] * 4, device=self._device)
+          landing_pos_ub = torch.tensor([1.0, 0.35] * 4, device=self._device)
           
-          self._action_lb = torch.concatenate([base_action_lb, rect_lb])
-          self._action_ub = torch.concatenate([base_action_ub, rect_ub])
+          self._action_lb = torch.concatenate([base_action_lb, landing_pos_lb])
+          self._action_ub = torch.concatenate([base_action_ub, landing_pos_ub])
 
   def _prepare_rewards(self):
     self._reward_names, self._reward_fns, self._reward_scales = [], [], []
@@ -317,9 +317,6 @@ class JumpEnv:
       self._terminal_reward_scales.append(scale)
       self._episode_sums[name] = torch.zeros(self._num_envs,
                                              device=self._device)
-
-  def reset(self) -> torch.Tensor:
-    return self.reset_idx(torch.arange(self._num_envs, device=self._device))
 
   def _split_action(self, action):
       """Split action into components."""
@@ -368,6 +365,9 @@ class JumpEnv:
               com_action = com_action[:, 1:]
           
           return gait_action, com_action, None, None, foot_rectangles
+
+  def reset(self) -> torch.Tensor:
+    return self.reset_idx(torch.arange(self._num_envs, device=self._device))
 
   def reset_idx(self, env_ids) -> torch.Tensor:
     # Aggregate rewards
