@@ -294,8 +294,8 @@ class JumpEnv:
           self._action_ub = torch.concatenate([base_action_ub, alpha_ub])
       else:
           # Add learned foot placement rectangles: [x, y, w, l] * 4 feet
-          landing_pos_lb = torch.tensor([-0.4, -0.35] * 4, device=self._device)
-          landing_pos_ub = torch.tensor([1.0, 0.35] * 4, device=self._device)
+          landing_pos_lb = torch.tensor([-0.4, -0.15] * 4, device=self._device)
+          landing_pos_ub = torch.tensor([0.4, 0.15] * 4, device=self._device)
           
           self._action_lb = torch.concatenate([base_action_lb, landing_pos_lb])
           self._action_ub = torch.concatenate([base_action_ub, landing_pos_ub])

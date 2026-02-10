@@ -16,7 +16,7 @@ def get_config():
 
   gait_config.swing_ratio = np.array([1,1,1,1], dtype=np.float32) * 0.75
   config.gait = gait_config
-  config.learn_raibert_alpha = True
+  config.use_raibert_controller = False
 
   config.goal_lb = torch.tensor([0.3, 0.],
                                 dtype=torch.float)  # Lin_x, Lin_y, Rot_z
