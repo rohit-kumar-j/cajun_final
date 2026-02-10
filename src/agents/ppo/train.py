@@ -5,6 +5,8 @@ from absl import flags
 
 from datetime import datetime
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"  # Use GPU 2
+
 
 from isaacgym.torch_utils import to_torch  # pylint: disable=unused-import
 from ml_collections.config_flags import config_flags
