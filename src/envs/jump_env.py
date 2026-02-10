@@ -545,8 +545,8 @@ class JumpEnv:
            foot_pos = desired_foot_positions[env_id, foot_id].cpu().numpy()
             
            # Fixed width and length for visualization
-           width = 0.15
-           length = 0.175
+           width = 0.05
+           length = 0.05
            
            colors = [
                [1, 0.2, 0.2],  # FR: Bright Red
