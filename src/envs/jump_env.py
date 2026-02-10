@@ -20,7 +20,7 @@ from src.robots import go1, go1_robot
 from src.robots.motors import MotorControlMode, MotorCommand
 
 
-# @torch.jit.script
+@torch.jit.script
 def torch_rand_float(lower, upper, shape: Sequence[int], device: str):
   return (upper - lower) * torch.rand(*shape, device=device) + lower
 
@@ -351,12 +351,12 @@ class JumpEnv:
           return gait_action, com_action, foot_action, alpha, None
       
       else:
-          # Learned foot placement mode: base_actions + 16 rectangle params
+          # Learned foot placement mode: base_actions + 8 foot position params
           com_action = action[:, :base_action_dim]
-          foot_rectangles = action[:, base_action_dim:]  # Last 16 elements
+          foot_positions = action[:, base_action_dim:]  # Last 8 elements [x, y] * 4
           
-          # Reshape to (num_envs, 4 feet, 4 params [x, y, w, l])
-          foot_rectangles = foot_rectangles.reshape((-1, 4, 2))
+          # Reshape to (num_envs, 4 feet, 2 params [x, y])
+          foot_positions = foot_positions.reshape((-1, 4, 2))
           
           # Legacy support
           gait_action = None
@@ -364,7 +364,7 @@ class JumpEnv:
               gait_action = com_action[:, :1]
               com_action = com_action[:, 1:]
           
-          return gait_action, com_action, None, None, foot_rectangles
+          return gait_action, com_action, None, None, foot_positions
 
   def reset(self) -> torch.Tensor:
     return self.reset_idx(torch.arange(self._num_envs, device=self._device))
@@ -426,7 +426,7 @@ class JumpEnv:
       logs = []
   
       zero = torch.zeros(self._num_envs, device=self._device)
-      gait_action, com_action, foot_action, alpha, foot_rectangles = self._split_action(action)
+      gait_action, com_action, foot_action, alpha, foot_positions = self._split_action(action)
   
       # Set alpha if using Raibert controller
       if alpha is not None:
@@ -499,13 +499,12 @@ class JumpEnv:
                                               cos_yaw * foot_action[:, :, 1])
                 desired_foot_positions += foot_action_world
         else:
-            # Use learned rectangles as foot positions (replaces Raibert)
-            # Extract center positions [x, y] from rectangles
-            foot_centers = foot_rectangles[:, :, :2]  # (num_envs, 4, 2)
+            # Use learned foot positions (replaces Raibert)
+            # foot_positions is (num_envs, 4, 2) with [x, y] per foot
             
             # Convert to [x, y, z] by adding z=0
-            foot_centers_3d = torch.cat([
-                foot_centers,
+            foot_positions_3d = torch.cat([
+                foot_positions,
                 torch.zeros(self._num_envs, 4, 1, device=self._device)
             ], dim=2)
             
@@ -514,11 +513,11 @@ class JumpEnv:
             cos_yaw = torch.cos(base_yaw)[:, None]
             sin_yaw = torch.sin(base_yaw)[:, None]
             
-            desired_foot_positions = torch.clone(foot_centers_3d)
-            desired_foot_positions[:, :, 0] = (cos_yaw * foot_centers_3d[:, :, 0] -
-                                               sin_yaw * foot_centers_3d[:, :, 1])
-            desired_foot_positions[:, :, 1] = (sin_yaw * foot_centers_3d[:, :, 0] +
-                                               cos_yaw * foot_centers_3d[:, :, 1])
+            desired_foot_positions = torch.clone(foot_positions_3d)
+            desired_foot_positions[:, :, 0] = (cos_yaw * foot_positions_3d[:, :, 0] -
+                                               sin_yaw * foot_positions_3d[:, :, 1])
+            desired_foot_positions[:, :, 1] = (sin_yaw * foot_positions_3d[:, :, 0] +
+                                               cos_yaw * foot_positions_3d[:, :, 1])
             
             # Add robot base position to get absolute world positions
             desired_foot_positions = desired_foot_positions + self._robot.base_position[:, None, :]
@@ -581,13 +580,9 @@ class JumpEnv:
         for foot_id in range(4):
             foot_pos = desired_foot_positions[env_id, foot_id].cpu().numpy()
             
-            # Get width and length from learned rectangles if available
-            if foot_rectangles is not None:
-                width = foot_rectangles[env_id, foot_id, 2].cpu().item() / 2  # Convert to half-width
-                length = foot_rectangles[env_id, foot_id, 3].cpu().item() / 2  # Convert to half-length
-            else:
-                width = 0.3  # Default
-                length = 0.175  # Default
+            # Fixed width and length for visualization
+            width = 0.15
+            length = 0.175
   
             colors = [
                 [1, 0.2, 0.2],  # FR: Bright Red
