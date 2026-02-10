@@ -37,6 +37,33 @@ _exit_state = {
     'frame_count': 0,
 }
 
+def create_cot_plot(output_dir, gait_name):
+    """Generate COT plot using the plotter script."""
+    print(f"\nGenerating COT plot...")
+    try:
+        # Get the directory containing this script
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        plotter_script = os.path.join(script_dir, 'cot_plotter.py')
+        
+        # Call the plotter script
+        cmd = [
+            sys.executable,
+            plotter_script,
+            '--path', output_dir,
+            '--save'
+        ]
+        
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        print(f"COT plot saved to: {output_dir}")
+        return True
+        
+    except subprocess.CalledProcessError as e:
+        print(f"Error creating COT plot: {e.stderr}")
+        return False
+    except Exception as e:
+        print(f"Unexpected error creating COT plot: {e}")
+        return False
+
 
 def save_data_to_matlab_format(output_dir, data_arrays, data_count):
     """Save all data arrays to individual .txt files in MATLAB-compatible format."""
@@ -158,6 +185,10 @@ def save_data_on_exit(reason="unknown"):
     if _exit_state['data_count'] > 0 and _exit_state['data_arrays'] is not None:
         try:
             save_data_to_matlab_format(_exit_state['output_dir'], _exit_state['data_arrays'], _exit_state['data_count'])
+            
+            # Generate COT plot after data is saved  ### ADD THIS
+            create_cot_plot(_exit_state['output_dir'], _exit_state['gait_name'])  ### ADD THIS
+            
         except Exception as e:
             print(f"ERROR: {e}")
             fallback = f"detailed_data_emergency_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
