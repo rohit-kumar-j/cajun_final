@@ -941,7 +941,7 @@ class JumpEnv:
       colors = np.array([color] * 4, dtype=np.float32)
       
       # CRITICAL FIX: Pass the environment handle from robot
-      gym.add_lines(viewer, self._robot.envs[0], lines.shape[0], lines, colors)
+      gym.add_lines(viewer, self._robot._envs[0], lines.shape[0], lines, colors)
 
   @property
   def device(self):
