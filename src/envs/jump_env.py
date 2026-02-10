@@ -937,12 +937,11 @@ class JumpEnv:
           lines.append(start + end)  # [x1, y1, z1, x2, y2, z2]
       
       # Convert to numpy arrays
-      import numpy as np
       lines = np.array(lines, dtype=np.float32)
       colors = np.array([color] * 4, dtype=np.float32)
       
-      # CRITICAL FIX: Pass the environment handle (first env)
-      gym.add_lines(viewer, self.envs[0], lines.shape[0], lines, colors)
+      # CRITICAL FIX: Pass the environment handle from robot
+      gym.add_lines(viewer, self._robot.envs[0], lines.shape[0], lines, colors)
 
   @property
   def device(self):
