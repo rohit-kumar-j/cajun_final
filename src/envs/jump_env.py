@@ -533,6 +533,32 @@ class JumpEnv:
     #   import pdb
     #   pdb.set_trace()
 
+
+    # DEBUG: View projected rectangles on the ground
+    if self._show_gui:
+        self._gym.clear_lines(self._viewer)
+                                    
+        env_id = 0
+        for foot_id in range(4):
+           foot_pos = desired_foot_positions[env_id, foot_id].cpu().numpy()
+            
+           # Fixed width and length for visualization
+           width = 0.15
+           length = 0.175
+           
+           colors = [
+               [1, 0.2, 0.2],  # FR: Bright Red
+               [0.2, 1, 0.2],  # FL: Bright Green
+               [0.3, 0.3, 1],  # RR: Bright Blue
+               [1, 1, 0.2]     # RL: Bright Yellow
+           ]
+           
+           self._draw_box(self._gym, self._viewer, 
+                center=(foot_pos[0], foot_pos[1], 0.02, length, width),
+                color=colors[foot_id],
+                thickness=5)
+
+
     if self._show_gui:
       self._robot.render()
     return self._obs_buf, self._privileged_obs_buf, sum_reward, dones, self._extras
@@ -671,6 +697,73 @@ class JumpEnv:
     #   import pdb
     #   pdb.set_trace()
     return torch.logical_or(self._episode_terminated(), is_unsafe)
+
+  def _draw_box(self, gym, viewer, center=None, corners=None, color=[1, 0, 0], thickness=3):
+    if center is not None:
+      if len(center) == 5:
+        x, y, z, half_length, half_width = center
+      elif len(center) == 4:
+        x, y, half_length, half_width = center
+        z = 0.01
+      else:
+        raise ValueError("center must be (x, y, z, half_length, half_width) or (x, y, half_length, half_width)")
+
+      corners = [
+                 [x - half_length, y - half_width, z],
+                 [x + half_length, y - half_width, z],
+                 [x + half_length, y + half_width, z],
+                 [x - half_length, y + half_width, z]
+                ]                                                                    
+
+    elif corners is not None:
+      corners = [list(c) + [0.01] * (3 - len(c)) for c in corners]
+      if len(corners) != 4:
+        raise ValueError("Must provide exactly 4 corner points")
+      else:
+        raise ValueError("Must provide either 'center' or 'corners'")
+
+
+    # Create multiple offset lines for thickness
+    lines = []
+    offset_step = 0.002  # 2mm spacing between parallel lines
+                        
+    for t in range(thickness):
+      # Offset in the Z direction to create thickness
+      z_offset = t * offset_step
+       
+      for i in range(4):
+        start = corners[i].copy()
+        end = corners[(i + 1) % 4].copy()
+                                                                                                                        
+        # Add z offset for thickness
+        start[2] += z_offset
+        end[2] += z_offset
+        
+        lines.append(start + end)
+
+    # Also draw filled cross-hatch pattern for better visibility
+    # Diagonal lines across the rectangle
+    for t in range(max(1, thickness // 2)):
+      z_offset = t * offset_step
+      # Diagonal 1
+      diag1_start = corners[0].copy()
+      diag1_end = corners[2].copy()
+      diag1_start[2] += z_offset
+      diag1_end[2] += z_offset
+      lines.append(diag1_start + diag1_end)
+      
+      # Diagonal 2
+      diag2_start = corners[1].copy()
+      diag2_end = corners[3].copy()
+      diag2_start[2] += z_offset
+      diag2_end[2] += z_offset
+      lines.append(diag2_start + diag2_end)
+
+    # Convert to numpy arrays
+    lines = np.array(lines, dtype=np.float32)
+    colors = np.array([color] * len(lines), dtype=np.float32)
+                        
+    gym.add_lines(viewer, self._robot._envs[0], lines.shape[0], lines, colors)
 
   @property
   def device(self):
