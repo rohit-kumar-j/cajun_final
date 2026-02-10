@@ -685,19 +685,24 @@ class JumpEnv:
       
       # Draw desired foot landing positions
       env_id = 0  # Only visualize first environment
+      base_pos = self._robot.base_position[env_id].cpu().numpy()  # Current robot base position
+
       for foot_id in range(4):
           foot_pos = desired_foot_positions[env_id, foot_id].cpu().numpy()
-          
+          box_x = foot_pos[0] + base_pos[0]
+          box_y = foot_pos[1] + base_pos[1]
+
           # Different color for each foot
           colors = [
-              [1, 0, 0],  # Front-left: Red
-              [0, 1, 0],  # Front-right: Green
-              [0, 0, 1],  # Rear-left: Blue
-              [1, 1, 0]   # Rear-right: Yellow
+              [1, 0.2, 0.2],  # Front-left: Bright Red
+              [0.2, 1, 0.2],  # Front-right: Bright Green
+              [0.3, 0.3, 1],  # Rear-left: Bright Blue
+              [1, 1, 0.2]     # Rear-right: Bright Yellow
           ]
           self._draw_box(self._gym, self._viewer, 
-                center=(foot_pos[0], foot_pos[1], 0.01, 0.175, 0.3),  # z=0.01 = 1cm
-                color=colors[foot_id])
+                center=(box_x, box_y, 0.02, 0.175, 0.3),  # z=0.01 = 1cm
+                color=colors[foot_id],
+                thickness=5)
 
     if self._show_gui:
       self._robot.render()
@@ -887,31 +892,28 @@ class JumpEnv:
 
     return torch.logical_or(self._episode_terminated(), is_unsafe)
 
-  def _draw_box(self, gym, viewer, center=None, corners=None, color=[1, 0, 0]):
+  def _draw_box(self, gym, viewer, center=None, corners=None, color=[1, 0, 0], thickness=3):
       """
-      Draw a rectangular box on the ground plane (z=0)
+      Draw a rectangular box with adjustable thickness
       
       Args:
           gym: Isaac Gym instance
           viewer: Viewer instance
           center: tuple (x, y, z, half_length, half_width) - center point and dimensions
-                  OR tuple (x, y, half_length, half_width) - assumes z=0
-          corners: list of 4 corner points [(x1,y1,z1), (x2,y2,z2), ...] in absolute coords
-                   If z is not provided, assumes z=0 for each corner
+          corners: list of 4 corner points in absolute coords
           color: RGB color values [r, g, b] from 0 to 1
+          thickness: number of parallel lines to draw (simulates thickness)
       """
       
       if center is not None:
-          # Parse center specification
           if len(center) == 5:
               x, y, z, half_length, half_width = center
           elif len(center) == 4:
               x, y, half_length, half_width = center
-              z = 0.01  # Default 1cm off ground instead of 0
+              z = 0.01
           else:
               raise ValueError("center must be (x, y, z, half_length, half_width) or (x, y, half_length, half_width)")
           
-          # Calculate corners from center and dimensions
           corners = [
               [x - half_length, y - half_width, z],
               [x + half_length, y - half_width, z],
@@ -920,27 +922,52 @@ class JumpEnv:
           ]
       
       elif corners is not None:
-          # Use provided corners, ensure z=0.01 if not specified
           corners = [list(c) + [0.01] * (3 - len(c)) for c in corners]
-          
           if len(corners) != 4:
               raise ValueError("Must provide exactly 4 corner points")
-      
       else:
           raise ValueError("Must provide either 'center' or 'corners'")
       
-      # Create line segments connecting the corners
+      # Create multiple offset lines for thickness
       lines = []
-      for i in range(4):
-          start = corners[i]
-          end = corners[(i + 1) % 4]
-          lines.append(start + end)  # [x1, y1, z1, x2, y2, z2]
+      offset_step = 0.002  # 2mm spacing between parallel lines
+      
+      for t in range(thickness):
+          # Offset in the Z direction to create thickness
+          z_offset = t * offset_step
+          
+          for i in range(4):
+              start = corners[i].copy()
+              end = corners[(i + 1) % 4].copy()
+              
+              # Add z offset for thickness
+              start[2] += z_offset
+              end[2] += z_offset
+              
+              lines.append(start + end)
+      
+      # Also draw filled cross-hatch pattern for better visibility
+      # Diagonal lines across the rectangle
+      for t in range(max(1, thickness // 2)):
+          z_offset = t * offset_step
+          # Diagonal 1
+          diag1_start = corners[0].copy()
+          diag1_end = corners[2].copy()
+          diag1_start[2] += z_offset
+          diag1_end[2] += z_offset
+          lines.append(diag1_start + diag1_end)
+          
+          # Diagonal 2
+          diag2_start = corners[1].copy()
+          diag2_end = corners[3].copy()
+          diag2_start[2] += z_offset
+          diag2_end[2] += z_offset
+          lines.append(diag2_start + diag2_end)
       
       # Convert to numpy arrays
       lines = np.array(lines, dtype=np.float32)
-      colors = np.array([color] * 4, dtype=np.float32)
+      colors = np.array([color] * len(lines), dtype=np.float32)
       
-      # CRITICAL FIX: Pass the environment handle from robot
       gym.add_lines(viewer, self._robot._envs[0], lines.shape[0], lines, colors)
 
   @property
