@@ -9,7 +9,7 @@ def get_config():
 
   gait_config = ConfigDict()
   gait_config.gait_name = "g2_rotary"
-  gait_config.stepping_frequency = 2.0
+  gait_config.stepping_frequency = 3.5
   gait_config.initial_offset = np.array([0.,0.1,.57,.47],
                                         dtype=np.float32) * (2 * np.pi)
   # Correct Order:[ FrontRight, FrontLeft, RearRight, RearLeft ]
@@ -63,15 +63,15 @@ def get_config():
 
   config.rewards = [
       ('upright', 0.02),
-      ('contact_consistency', 0.008),
+      ('contact_consistency', 0.028),
       ('foot_slipping', 0.032),
-      ('foot_clearance', 0.008),
-      ('out_of_bound_action', 0.01),
+      ('foot_clearance', 0.028),
+      # ('out_of_bound_action', 0.01),
       ('knee_contact', 0.064),
       # ('stepping_freq', 0.008),
       ('com_distance_to_goal_squared', 0.016),
       ('com_height', 0.01),
-      ('speed_tracking', 0.01),
+      ('speed_tracking', 0.04),
       ('forward_speed', 0.02),
   ]
   config.clip_negative_reward = False
