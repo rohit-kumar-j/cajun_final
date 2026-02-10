@@ -225,6 +225,8 @@ class JumpEnv:
             self._torque_optimizer.get_action(
                 desired_contact_state, swing_foot_position=desired_foot_positions)
 
+    print("Environment attributes:", [attr for attr in dir(self) if 'env' in attr.lower()])
+
   def _create_terrain(self):
     """Creates terrains.
 
@@ -940,7 +942,7 @@ class JumpEnv:
       colors = np.array([color] * 4, dtype=np.float32)
       
       # CRITICAL FIX: Pass the environment handle (first env)
-      gym.add_lines(viewer, self._envs[0], lines.shape[0], lines, colors)
+      gym.add_lines(viewer, self.envs[0], lines.shape[0], lines, colors)
 
   @property
   def device(self):
