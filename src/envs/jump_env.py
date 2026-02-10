@@ -356,7 +356,7 @@ class JumpEnv:
           foot_rectangles = action[:, base_action_dim:]  # Last 16 elements
           
           # Reshape to (num_envs, 4 feet, 4 params [x, y, w, l])
-          foot_rectangles = foot_rectangles.reshape((-1, 4, 4))
+          foot_rectangles = foot_rectangles.reshape((-1, 4, 2))
           
           # Legacy support
           gait_action = None
