@@ -693,11 +693,9 @@ class JumpEnv:
               [0, 0, 1],  # Rear-left: Blue
               [1, 1, 0]   # Rear-right: Yellow
           ]
-          
-          # Draw box at foot position with 0.35m length x 0.6m width
           self._draw_box(self._gym, self._viewer, 
-                  center=(foot_pos[0], foot_pos[1], foot_pos[2], 0.175, 0.3),
-                  color=colors[foot_id])
+                center=(foot_pos[0], foot_pos[1], 0.01, 0.175, 0.3),  # z=0.01 = 1cm
+                color=colors[foot_id])
 
     if self._show_gui:
       self._robot.render()
@@ -899,15 +897,6 @@ class JumpEnv:
           corners: list of 4 corner points [(x1,y1,z1), (x2,y2,z2), ...] in absolute coords
                    If z is not provided, assumes z=0 for each corner
           color: RGB color values [r, g, b] from 0 to 1
-      
-      Usage:
-          # Option 1: Specify center and dimensions
-          draw_box(gym, viewer, center=(1.0, 2.0, 0.5, 0.03, 0.05))
-          draw_box(gym, viewer, center=(1.0, 2.0, 0.03, 0.05))  # z=0 assumed
-          
-          # Option 2: Specify absolute corner positions
-          draw_box(gym, viewer, corners=[(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)])
-          draw_box(gym, viewer, corners=[(0, 0), (1, 0), (1, 1), (0, 1)])  # z=0 assumed
       """
       
       if center is not None:
@@ -916,7 +905,7 @@ class JumpEnv:
               x, y, z, half_length, half_width = center
           elif len(center) == 4:
               x, y, half_length, half_width = center
-              z = 0
+              z = 0.01  # Default 1cm off ground instead of 0
           else:
               raise ValueError("center must be (x, y, z, half_length, half_width) or (x, y, half_length, half_width)")
           
@@ -929,8 +918,8 @@ class JumpEnv:
           ]
       
       elif corners is not None:
-          # Use provided corners, ensure z=0 if not specified
-          corners = [list(c) + [0] * (3 - len(c)) for c in corners]
+          # Use provided corners, ensure z=0.01 if not specified
+          corners = [list(c) + [0.01] * (3 - len(c)) for c in corners]
           
           if len(corners) != 4:
               raise ValueError("Must provide exactly 4 corner points")
@@ -946,11 +935,12 @@ class JumpEnv:
           lines.append(start + end)  # [x1, y1, z1, x2, y2, z2]
       
       # Convert to numpy arrays
+      import numpy as np
       lines = np.array(lines, dtype=np.float32)
       colors = np.array([color] * 4, dtype=np.float32)
       
-      # Add lines to viewer
-      gym.add_lines(viewer, None, lines.shape[0], lines, colors)
+      # CRITICAL FIX: Pass the environment handle (first env)
+      gym.add_lines(viewer, self._envs[0], lines.shape[0], lines, colors)
 
   @property
   def device(self):
