@@ -82,6 +82,7 @@ class JumpEnv:
     self._device = device
     self._show_gui = show_gui
     self._config = config
+    self._frame_callback= None
     self._use_real_robot = use_real_robot
     self._jumping_distance_schedule = config.get('jumping_distance_schedule',
                                                  None)
@@ -91,9 +92,14 @@ class JumpEnv:
     with self._config.unlocked():
       self._config.goal_lb = to_torch(self._config.goal_lb, device=self._device)
       self._config.goal_ub = to_torch(self._config.goal_ub, device=self._device)
+      self.velocity_lb = to_torch(self._config.velocity_lb, device=self._device)
+      self.velocity_ub = to_torch(self._config.velocity_ub, device=self._device)
       if self._config.get('observation_noise', None) is not None:
         self._config.observation_noise = to_torch(
             self._config.observation_noise, device=self._device)
+
+    # preallocate buffer
+    self._desired_velocity = torch.zeros(self._num_envs, 3, device=self._device)
 
     # Set up robot and controller
     use_gpu = ("cuda" in device)
@@ -225,17 +231,19 @@ class JumpEnv:
 
   def _construct_observation_and_action_space(self):
     robot_lb = to_torch(
-        [0., -3.14, -3.14, -4., -4., -10., -3.14, -3.14, -3.14] +
+        [0., -3.14, -3.14, -6., -6., -10., -3.14, -3.14, -3.14] +
         [-0.5, -0.5, -0.4] * 4,
         device=self._device)
-    robot_ub = to_torch([0.6, 3.14, 3.14, 4., 4., 10., 3.14, 3.14, 3.14] +
+    robot_ub = to_torch([0.6, 3.14, 3.14, 6., 6., 10., 3.14, 3.14, 3.14] +
                         [0.5, 0.5, 0.] * 4,
                         device=self._device)
 
     task_lb = to_torch([-2., -2., -1., -1., -1.], device=self._device)
     task_ub = to_torch([2., 2., 1., 1., 1.], device=self._device)
-    self._observation_lb = torch.concatenate((task_lb, robot_lb))
-    self._observation_ub = torch.concatenate((task_ub, robot_ub))
+    desired_x_veocity_body_frame_lb = to_torch([self._config.velocity_lb], device=self._device)
+    desired_x_veocity_body_frame_ub = to_torch([self._config.velocity_ub], device=self._device)
+    self._observation_lb = torch.concatenate((task_lb, robot_lb, desired_x_veocity_body_frame_lb))
+    self._observation_ub = torch.concatenate((task_ub, robot_ub, desired_x_veocity_body_frame_ub))
     if self._config.get("observe_heights", False):
       num_heightpoints = len(self._config.measured_points_x) * len(
           self._config.measured_points_y)
@@ -327,6 +335,10 @@ class JumpEnv:
               (self._cycle_count[env_ids].clip(min=1)))
 
         self._episode_sums[reward_name][env_ids] = 0
+      r = torch.rand(env_ids.shape[0], device=self.device)  # sample N random numbers in [0, 1)
+      desired_velocity_x = self.velocity_lb + r * (self.velocity_ub - self.velocity_lb)
+      self._desired_velocity[env_ids, 0]= desired_velocity_x
+      self._desired_velocity[env_ids, 1:] = 0  # Vy
 
       self._steps_count[env_ids] = 0
       self._cycle_count[env_ids] = 0
@@ -488,6 +500,10 @@ class JumpEnv:
     #   pdb.set_trace()
 
     if self._show_gui:
+      # Frame capture
+      if self._frame_callback is not None:
+        self._frame_callback(self._robot.time_since_reset.item())
+
       self._robot.render()
     return self._obs_buf, self._privileged_obs_buf, sum_reward, dones, self._extras
 
@@ -542,6 +558,7 @@ class JumpEnv:
             # self._robot.motor_velocities,
             self._robot.foot_positions_in_base_frame.reshape(
                 (self._num_envs, 12)),
+                self._desired_velocity[:,0:1], # To go faster
         ),
         dim=1)
     obs = torch.concatenate((distance_to_goal_local, phase_obs, robot_obs),

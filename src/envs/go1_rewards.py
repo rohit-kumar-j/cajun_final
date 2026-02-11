@@ -12,11 +12,19 @@ class Go1Rewards:
     self._device = self._env.device
 
   def speed_tracking_reward(self):
-    actual_speed = torch.concatenate(
-        (self._robot.base_velocity_body_frame[:, :2],
-         self._robot.base_angular_velocity_body_frame[:, 2:]),
-        dim=1)
-    return -torch.sum(torch.square(self._env.command - actual_speed), dim=1)
+    # Construct actual: [vx, vy, yaw_rate]
+    actual = torch.cat([
+        self._robot.base_velocity_body_frame[:, :2],  # vx, vy
+        self._robot.base_angular_velocity_body_frame[:, 2:3]  # yaw_rate
+    ], dim=1)
+      
+    # Construct desired: [vx, vy, yaw_rate]
+    desired = torch.cat([
+      self._env._desired_velocity[:, :2],  # vx, vy from desired_velocity
+      torch.zeros(self._num_envs, 1, device=self._device)  # zero yaw_rate
+    ], dim=1)
+
+    return -torch.sum(torch.square(desired - actual), dim=1)
 
   def forward_speed_reward(self):
     return self._robot.base_velocity_body_frame[:, 0]
