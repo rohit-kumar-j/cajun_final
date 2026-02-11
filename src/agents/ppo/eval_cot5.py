@@ -299,7 +299,7 @@ flags.DEFINE_bool("use_contact_sensor", True, "whether to use contact sensor.")
 flags.DEFINE_bool("enable_plotting", False, "whether to enable real-time plotting.")
 flags.DEFINE_integer("max_steps", 10000, "maximum number of simulation steps.")
 flags.DEFINE_bool("record_video", False, "whether to record video of simulation.")
-flags.DEFINE_integer("render_fps", 30, "FPS for video recording.")
+flags.DEFINE_integer("render_fps", 60, "FPS for video recording.")
 
 FLAGS = flags.FLAGS
 
@@ -346,7 +346,7 @@ def main(argv):
     print(f"Output: {output_dir}")
 
     with config.unlocked():
-        velocity_up = torch.linspace(0.5, 6.0, 500)
+        velocity_up = torch.linspace(0.5, 6.0, 100)
         velocity_schedule = velocity_up
         config.environment.jumping_distance_schedule = velocity_schedule / config.environment.gait.stepping_frequency
         config.environment.gait.desired_velocity = torch.tensor([velocity_schedule[0].item(), 0, 0])
