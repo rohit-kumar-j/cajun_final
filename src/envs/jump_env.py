@@ -535,7 +535,7 @@ class JumpEnv:
 
 
     # DEBUG: View projected rectangles on the ground
-    if self._show_gui:
+    if self._num_envs == 1 and self._show_gui:
         self._gym.clear_lines(self._viewer)
                                     
         env_id = 0
