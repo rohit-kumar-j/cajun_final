@@ -1,0 +1,56 @@
+Traceback (most recent call last):
+  File "/home/nvidia/miniconda3/envs/rlgpu/lib/python3.8/runpy.py", line 194, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/home/nvidia/miniconda3/envs/rlgpu/lib/python3.8/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/home/nvidia/rohit/cf_16k/src/agents/ppo/train.py", line 56, in <module>
+    app.run(main)
+  File "/home/nvidia/miniconda3/envs/rlgpu/lib/python3.8/site-packages/absl/app.py", line 308, in run
+    args = _run_init(
+  File "/home/nvidia/miniconda3/envs/rlgpu/lib/python3.8/site-packages/absl/app.py", line 377, in _run_init
+    args = _register_and_parse_flags_with_usage(
+  File "/home/nvidia/miniconda3/envs/rlgpu/lib/python3.8/site-packages/absl/app.py", line 223, in _register_and_parse_flags_with_usage
+    args_to_main = flags_parser(original_argv)
+  File "/home/nvidia/miniconda3/envs/rlgpu/lib/python3.8/site-packages/absl/app.py", line 162, in parse_flags_with_usage
+    return FLAGS(args)
+  File "/home/nvidia/miniconda3/envs/rlgpu/lib/python3.8/site-packages/absl/flags/_flagvalues.py", line 687, in __call__
+    unknown_flags, unparsed_args = self._parse_args(args, known_only)
+  File "/home/nvidia/miniconda3/envs/rlgpu/lib/python3.8/site-packages/absl/flags/_flagvalues.py", line 841, in _parse_args
+    flag.parse(value)
+  File "/home/nvidia/miniconda3/envs/rlgpu/lib/python3.8/site-packages/absl/flags/_flag.py", line 192, in parse
+    self.value = self._parse(argument)
+  File "/home/nvidia/miniconda3/envs/rlgpu/lib/python3.8/site-packages/ml_collections/config_flags/config_flags.py", line 620, in _parse
+    config = super(_ConfigFlag, self)._parse(argument)
+  File "/home/nvidia/miniconda3/envs/rlgpu/lib/python3.8/site-packages/absl/flags/_flag.py", line 207, in _parse
+    return self.parser.parse(argument)  # type: ignore[arg-type]
+  File "/home/nvidia/miniconda3/envs/rlgpu/lib/python3.8/site-packages/ml_collections/config_flags/config_flags.py", line 528, in parse
+    config_module = _LoadConfigModule('{}_config'.format(self.name),
+  File "/home/nvidia/miniconda3/envs/rlgpu/lib/python3.8/site-packages/ml_collections/config_flags/config_flags.py", line 453, in _LoadConfigModule
+    config_module = imp.load_source(name, path)
+  File "/home/nvidia/miniconda3/envs/rlgpu/lib/python3.8/imp.py", line 171, in load_source
+    module = _load(spec)
+  File "<frozen importlib._bootstrap>", line 702, in _load
+  File "<frozen importlib._bootstrap>", line 671, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 843, in exec_module
+  File "<frozen importlib._bootstrap>", line 219, in _call_with_frames_removed
+  File "src/agents/ppo/configs/g2_rotary.py", line 5, in <module>
+    from src.envs import jump_env
+  File "/home/nvidia/rohit/cf_16k/src/envs/jump_env.py", line 19, in <module>
+    from src.robots import go1, go1_robot
+  File "/home/nvidia/rohit/cf_16k/src/robots/go1.py", line 8, in <module>
+    from src.robots.robot import Robot
+  File "/home/nvidia/rohit/cf_16k/src/robots/robot.py", line 6, in <module>
+    from isaacgym import gymapi, gymtorch, torch_utils
+  File "/home/nvidia/rohit/isaacgym/python/isaacgym/gymtorch.py", line 109, in <module>
+    _import_gymtorch()
+  File "/home/nvidia/rohit/isaacgym/python/isaacgym/gymtorch.py", line 20, in _import_gymtorch
+    import torch.utils.cpp_extension
+  File "/home/nvidia/miniconda3/envs/rlgpu/lib/python3.8/site-packages/torch/utils/cpp_extension.py", line 210, in <module>
+    CUDA_HOME = _find_cuda_home()
+  File "/home/nvidia/miniconda3/envs/rlgpu/lib/python3.8/site-packages/torch/utils/cpp_extension.py", line 115, in _find_cuda_home
+    if cuda_home and not torch.cuda.is_available():
+  File "/home/nvidia/miniconda3/envs/rlgpu/lib/python3.8/site-packages/torch/cuda/__init__.py", line 107, in is_available
+    return torch._C._cuda_getDeviceCount() > 0
+KeyboardInterrupt
+Importing module 'gym_38' (/home/nvidia/rohit/isaacgym/python/isaacgym/_bindings/linux-x86_64/gym_38.so)
+Setting GYM_USD_PLUG_INFO_PATH to /home/nvidia/rohit/isaacgym/python/isaacgym/_bindings/linux-x86_64/usd/plugInfo.json

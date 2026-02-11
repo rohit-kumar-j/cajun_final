@@ -232,10 +232,10 @@ class JumpEnv:
   def _construct_observation_and_action_space(self):
       # These are joint limits it seems
       robot_lb = to_torch( 
-          [0., -3.14, -3.14, -4., -4., -10., -3.14, -3.14, -3.14] +
+          [0., -3.14, -3.14, -6., -6., -10., -3.14, -3.14, -3.14] +
           [-0.5, -0.5, -0.4] * 4,
           device=self._device)
-      robot_ub = to_torch([0.6, 3.14, 3.14, 4., 4., 10., 3.14, 3.14, 3.14] +
+      robot_ub = to_torch([0.6, 3.14, 3.14, 6., 6., 10., 3.14, 3.14, 3.14] +
                           [0.5, 0.5, 0.] * 4,
                           device=self._device)
 

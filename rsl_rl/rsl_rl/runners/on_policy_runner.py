@@ -146,7 +146,10 @@ class OnPolicyRunner:
         self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(it)))
       ep_infos.clear()
 
-    self.current_learning_iteration += num_learning_iterations
+    #HACK self.current_learning_iteration += num_learning_iterations
+    if 'it' in locals():
+      self.current_learning_iteration = it + 1
+
     self.save(
         os.path.join(self.log_dir,
                      'model_{}.pt'.format(self.current_learning_iteration)))
@@ -206,7 +209,10 @@ class OnPolicyRunner:
       self.writer.add_scalar('Train/mean_episode_length/time',
                              statistics.mean(locs['lenbuffer']), self.tot_time)
 
-    str = f" \033[1m Learning iteration {locs['it']}/{self.current_learning_iteration + locs['num_learning_iterations']} \033[0m "
+    #HACK str = f" \033[1m Learning iteration {locs['it']}/{self.current_learning_iteration + locs['num_learning_iterations']} \033[0m "
+    it = locs['it']
+    total = locs['tot_iter']
+    str = f" \033[1m Learning iteration {it}/{total} \033[0m "
 
     if len(locs['rewbuffer']) > 0:
       log_string = (
