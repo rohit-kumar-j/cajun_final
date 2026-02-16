@@ -119,7 +119,20 @@ class MotorGroup:
         self._min_torques * (1 - current_motor_velocity / self._min_velocities),
         self._min_torques)
 
-    return torch.clip(desired_torque, torque_lb, torque_ub)
+    clipped = torch.clip(desired_torque, torque_lb, torque_ub)
+    if self._num_envs == 1:
+        τ, ub, lb, v, vm = desired_torque[0], torque_ub[0], torque_lb[0], current_motor_velocity[0], self._max_velocities
+        clip_mask = (τ >= ub - 0.1) | (τ <= lb + 0.1)  # Torque clipped
+        vel_mask = (v.abs() >= 0.8 * vm.abs())          # Velocity near max
+        names = ['FRh','FRt','FRc','FLh','FLt','FLc','RRh','RRt','RRc','RLh','RLt','RLc']
+        print(' '.join([f"\033[91m{n}\033[0m" if clip_mask[i] else (f"\033[92m{n}\033[0m" if vel_mask[i] else f"\033[90m{n}\033[0m") for i,n in enumerate(names)]))
+
+    return clipped
+
+
+  def _clip_torques_no_speed_limit(self, desired_torque, current_motor_velocity):
+    # Simply clip to max/min torque regardless of velocity
+    return torch.clip(desired_torque, self._min_torques, self._max_torques)
 
   def convert_to_torque(
       self,
@@ -149,7 +162,8 @@ class MotorGroup:
 
     total_torque = (kp * (desired_position - current_position) + kd *
                     (desired_velocity - current_velocity) + self._torque_output)
-    applied_torque = self._clip_torques(total_torque, current_velocity)
+    # applied_torque = self._clip_torques(total_torque, current_velocity)
+    applied_torque = self._clip_torques_no_speed_limit(total_torque, current_velocity)
     applied_torque *= self._strength_ratios
 
     return applied_torque, total_torque

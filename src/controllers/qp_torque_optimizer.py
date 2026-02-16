@@ -163,7 +163,7 @@ def solve_grf(mass_mat,
   grf_world = torch.transpose(
       torch.bmm(base_rot_mat, torch.transpose(grf, 1, 2)), 1, 2)
   if clip_grf:
-    grf_world[:, :, 2] = grf_world[:, :, 2].clip(min=10, max=130)
+    grf_world[:, :, 2] = grf_world[:, :, 2].clip(min=10, max=800)
     grf_world[:, :, 2] *= foot_contact_state
   friction_force = torch.norm(grf_world[:, :, :2], dim=2) + 0.001
   max_friction_force = foot_friction_coef * grf_world[:, :, 2].clip(min=0)
@@ -269,7 +269,7 @@ class QPTorqueOptimizer:
                body_mass=13.076,
                body_inertia=np.array([0.14, 0.35, 0.35]) * 0.5,
                desired_body_height=0.26,
-               foot_friction_coef=0.7,
+               foot_friction_coef=1.0,
                clip_grf=False,
                use_full_qp=False):
     """Initializes the controller with desired weights and gains."""
@@ -425,9 +425,9 @@ class QPTorqueOptimizer:
     #   pdb.set_trace()
     return MotorCommand(
         desired_position=desired_position,
-        kp=torch.ones_like(self._robot.motor_group.kps) * 30,
+        kp=torch.ones_like(self._robot.motor_group.kps) * 60,
         desired_velocity=desired_velocity,
-        kd=torch.ones_like(self._robot.motor_group.kds) * 1,
+        kd=torch.ones_like(self._robot.motor_group.kds) * 2,
         desired_extra_torque=desired_torque
     ), desired_acc_body_frame, solved_acc, qp_cost, num_clips
 
@@ -458,8 +458,8 @@ class QPTorqueOptimizer:
                                     desired_foot_position.transpose(
                                         1, 2)).transpose(1, 2)
     foot_position_local[:, :, 2] = torch.clip(foot_position_local[:, :, 2],
-                                              min=-0.35,
-                                              max=-0.1)
+                                              min=-0.40,
+                                              max=-0.08)
 
     desired_motor_position = self._robot.get_motor_angles_from_foot_positions(
         foot_position_local)

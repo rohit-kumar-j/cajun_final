@@ -124,7 +124,7 @@ class JumpEnv:
         motor_control_mode=MotorControlMode.HYBRID,
         motor_torque_delay_steps=self._config.get('motor_torque_delay_steps',
                                                   0))
-    strength_ratios = self._config.get('motor_strength_ratios', 0.7)
+    strength_ratios = self._config.get('motor_strength_ratios', 1.0)
     if isinstance(strength_ratios, Sequence) and len(strength_ratios) == 2:
       ratios = torch_rand_float(lower=to_torch([strength_ratios[0]],
                                                device=self._device),
@@ -140,7 +140,7 @@ class JumpEnv:
 
     # Need to set frictions twice to make it work on GPU... 😂
     self._robot.set_foot_frictions(0.01)
-    self._robot.set_foot_frictions(self._config.get('foot_friction', 1.))
+    self._robot.set_foot_frictions(self._config.get('foot_friction', 10.))
     self._gait_generator = phase_gait_generator.PhaseGaitGenerator(
         self._robot, self._config.gait)
     self._swing_leg_controller = raibert_swing_leg_controller.RaibertSwingLegController(
@@ -212,8 +212,8 @@ class JumpEnv:
     """
     plane_params = gymapi.PlaneParams()
     plane_params.normal = gymapi.Vec3(0.0, 0.0, 1.0)
-    plane_params.static_friction = 1.
-    plane_params.dynamic_friction = 1.
+    plane_params.static_friction = 10.0
+    plane_params.dynamic_friction = 8.0
     plane_params.restitution = 0.
     self._gym.add_ground(self._sim, plane_params)
     self._terrain = None
@@ -235,7 +235,7 @@ class JumpEnv:
           [0., -3.14, -3.14, -4., -4., -10., -3.14, -3.14, -3.14] +
           [-0.5, -0.5, -0.4] * 4,
           device=self._device)
-      robot_ub = to_torch([0.6, 3.14, 3.14, 4., 4., 10., 3.14, 3.14, 3.14] +
+      robot_ub = to_torch([0.6, 3.14, 3.14, 8., 4., 10., 3.14, 3.14, 3.14] +
                           [0.5, 0.5, 0.] * 4,
                           device=self._device)
 

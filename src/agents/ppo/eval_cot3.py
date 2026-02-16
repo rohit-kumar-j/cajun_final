@@ -891,7 +891,7 @@ def main(argv):
         config = yaml.load(f, Loader=yaml.Loader)
 
     with config.unlocked():
-        velocity_up = torch.linspace(0.75, 6.0, 200)
+        velocity_up = torch.linspace(0.75, 6.0, 50)
         velocity_schedule = velocity_up
         config.environment.jumping_distance_schedule = velocity_schedule / config.environment.gait.stepping_frequency
         config.environment.gait.desired_velocity = torch.tensor([velocity_schedule[0].item(), 0, 0])

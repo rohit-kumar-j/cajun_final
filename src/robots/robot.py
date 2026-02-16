@@ -149,6 +149,11 @@ class Robot:
                                                rigid_shape_props)
     # import pdb
     # pdb.set_trace()
+    # print( f"friction: {self._gym.get_actor_rigid_shape_properties(self._envs[env_id], self._actors[env_id])[3].friction}")
+    # ans = input("Any Key...")
+    # if ans in ['y', 'Y']:
+    #   import pdb
+    #   pdb.set_trace()
 
   def set_foot_frictions(self, friction_coefs, env_ids=None):
     if env_ids is None:

@@ -9,12 +9,12 @@ def get_config():
 
   gait_config = ConfigDict()
   gait_config.gait_name = "g2_rotary"
-  gait_config.stepping_frequency = 2.0
+  gait_config.stepping_frequency = 1.5
   gait_config.initial_offset = np.array([0.,0.1,.57,.47],
                                         dtype=np.float32) * (2 * np.pi)
   # Correct Order:[ FrontRight, FrontLeft, RearRight, RearLeft ]
 
-  gait_config.swing_ratio = np.array([1,1,1,1], dtype=np.float32) * 0.75
+  gait_config.swing_ratio = np.array([1,1,1,1], dtype=np.float32) * 0.6
   config.gait = gait_config
   config.learn_raibert_alpha = True
 
@@ -32,10 +32,16 @@ def get_config():
   # Fully Flexible
   config.action_lb = np.array(
       [0.5, -0.001, -3, -0.001, -3., -0.001, -0.001, -2.5, -0.001] +
-      [-0.1, -0.0001, -0.001] * 4)
+      [-0.1, -0.0001, -0.001] * 4
+      # [100,200,300] *4 # kp
+      # [10,20,30] *4 # kd
+    )
   config.action_ub = np.array(
       [4.999, 0.001, 3, 0.001, 3., 0.001, 0.001, 2.5, 0.001] +
-      [0.1, 0.0001, 0.2] * 4)
+      [0.1, 0.0001, 0.2] * 4
+      # [600,700,800] *4 # kp
+      # [30,35,40] *4 # kp
+    )
 
   config.episode_length_s = 20.
   config.max_jumps = 10.
@@ -44,7 +50,7 @@ def get_config():
   config.motor_torque_delay_steps = 5
   # config.rse_yaw_feedback = pose.r # same orn
   config.use_yaw_feedback = True
-  config.foot_friction = 1.  #0.7
+  config.foot_friction = 10.  #0.7
   config.base_position_kp = np.array([0., 0., 0.])
   config.base_position_kd = np.array([10., 10., 10.])
   config.base_orientation_kp = np.array([50., 0., 0.])
