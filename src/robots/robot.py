@@ -255,8 +255,25 @@ class Robot:
         self._gym.fetch_results(self._sim, True)
       self._gym.refresh_dof_state_tensor(self._sim)
       self._time_since_reset += self._sim_config.sim_params.dt
-
+      # self._debug_collisions()
     self._post_physics_step()
+
+  def _debug_collisions(self):
+    """Print collision info for first environment."""
+    props = self._gym.get_actor_rigid_shape_properties(
+        self._robot._envs[0], self._robot._actors[0])
+    names = self._gym.get_actor_rigid_body_names(
+        self._robot._envs[0], self._robot._actors[0])
+    
+    print("\n=== Collision Filters ===")
+    for name, prop in zip(names, props):
+      print(f"  {name:20s}: filter={prop.filter}")
+    
+    print("\n=== Bodies that CAN collide (filter_A & filter_B == 0) ===")
+    for i, (n1, p1) in enumerate(zip(names, props)):
+      for j, (n2, p2) in enumerate(zip(names, props)):
+        if i < j and (p1.filter & p2.filter) == 0:
+          print(f"  {n1} <-> {n2}")
 
   def _post_physics_step(self):
     self._gym.refresh_actor_root_state_tensor(self._sim)

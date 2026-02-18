@@ -140,7 +140,7 @@ class JumpEnv:
 
     # Need to set frictions twice to make it work on GPU... 😂
     self._robot.set_foot_frictions(0.01)
-    self._robot.set_foot_frictions(self._config.get('foot_friction', 10.))
+    self._robot.set_foot_frictions(self._config.get('foot_friction', 1.))
     self._gait_generator = phase_gait_generator.PhaseGaitGenerator(
         self._robot, self._config.gait)
     self._swing_leg_controller = raibert_swing_leg_controller.RaibertSwingLegController(
@@ -212,8 +212,8 @@ class JumpEnv:
     """
     plane_params = gymapi.PlaneParams()
     plane_params.normal = gymapi.Vec3(0.0, 0.0, 1.0)
-    plane_params.static_friction = 10.0
-    plane_params.dynamic_friction = 8.0
+    plane_params.static_friction = 1.0
+    plane_params.dynamic_friction = 1.0
     plane_params.restitution = 0.
     self._gym.add_ground(self._sim, plane_params)
     self._terrain = None

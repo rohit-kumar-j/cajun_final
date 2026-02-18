@@ -10,10 +10,8 @@ def get_config():
   gait_config = ConfigDict()
   gait_config.gait_name = "g2_rotary"
   gait_config.stepping_frequency = 1.5
-  gait_config.initial_offset = np.array([0.,0.1,.57,.47],
-                                        dtype=np.float32) * (2 * np.pi)
   # Correct Order:[ FrontRight, FrontLeft, RearRight, RearLeft ]
-
+  gait_config.initial_offset = np.array([0.,0.1,.57,.47], dtype=np.float32) * (2 * np.pi)
   gait_config.swing_ratio = np.array([1,1,1,1], dtype=np.float32) * 0.6
   config.gait = gait_config
   config.learn_raibert_alpha = True
@@ -55,7 +53,7 @@ def get_config():
   config.base_position_kd = np.array([10., 10., 10.])
   config.base_orientation_kp = np.array([50., 0., 0.])
   config.base_orientation_kd = np.array([10., 10., 10.])
-  config.qp_foot_friction_coef = 0.6
+  config.qp_foot_friction_coef = 0.9
   config.qp_weight_ddq = np.diag([1., 1., 10., 10., 10., 1.])
   config.qp_body_inertia = np.array([0.14, 0.35, 0.35]) * 1.5
   config.clip_grf_in_sim = True

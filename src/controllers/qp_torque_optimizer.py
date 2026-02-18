@@ -385,6 +385,22 @@ class QPTorqueOptimizer:
         desired_acc_body_frame,
         to_torch([-30, -30, -10, -20, -20, -20], device=self._device),
         to_torch([30, 30, 30, 20, 20, 20], device=self._device))
+
+    # DEBUG PRINT OUT OF BOUND
+    # Debug: Check first environment
+    # acc = desired_acc_body_frame[0].cpu().numpy()
+    # lb = [-30, -30, -10, -20, -20, -20]
+    # ub = [30, 30, 30, 20, 20, 20]
+    # names = ['ax','ay','az','αx', 'αy', 'αz']
+    # print(' '.join([f"\033[91m{names[i]}={acc[i]:+.1f}\033[0m" if acc[i] >= ub[i] - 0.1 else (f"\033[92m{names[i]}={acc[i]:+.1f}\033[0m" if acc[i] <= lb[i] + 0.1 else f"{names[i]}={acc[i]:+.1f}") for i in range(6)]))
+
+    # DEBUG PRINT OVER BOUND
+    # acc = desired_acc_body_frame[0].cpu().numpy()
+    # lb, ub = np.array([-30,-30,-10,-20,-20,-20]), np.array([30,30,30,20,20,20])
+    # names = ['ax','ay','az','αx', 'αy', 'αz']
+    # print('acc: ' + ' '.join([f"\033[96m{names[i]}={acc[i]:+.1f}\033[0m" if acc[i]>ub[i]+1 else f"\033[94m{names[i]}={acc[i]:+.1f}\033[0m" if acc[i]<lb[i]-1 else f"\033[93m{names[i]}={acc[i]:+.1f}\033[0m" if acc[i]>ub[i] or acc[i]<lb[i] else f"\033[90m{names[i]}={acc[i]:+.1f}\033[0m" for i in range(6)]))
+
+
     motor_torques, solved_acc, grf, qp_cost, num_clips = self._solve_joint_torques(
         foot_contact_state, desired_acc_body_frame)
     foot_position_local = torch.bmm(self._robot.base_rot_mat_t,

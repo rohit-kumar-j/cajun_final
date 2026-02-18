@@ -20,5 +20,5 @@ def get_config():
   asset_options.thickness = 0.01
   asset_options.disable_gravity = False
   config.asset_options = asset_options
-  config.self_collisions = 0  # 1 to disable, 0 to enable...bitwise filter
+  config.self_collisions = 1  # 1 to disable, 0 to enable...bitwise filter
   return config

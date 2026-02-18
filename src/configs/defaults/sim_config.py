@@ -18,8 +18,8 @@ def get_config(use_gpu=True,
   sim_params.physx.num_subscenes = 0  #default_args.subscenes
   sim_params.physx.num_threads = 10
   sim_params.physx.solver_type = 1  # 0: pgs, 1: tgs
-  sim_params.physx.num_position_iterations = 4
-  sim_params.physx.num_velocity_iterations = 0
+  sim_params.physx.num_position_iterations = 8
+  sim_params.physx.num_velocity_iterations = 2
   if use_penetrating_contact:
     sim_params.physx.contact_offset = 0.
     sim_params.physx.rest_offset = -0.01
