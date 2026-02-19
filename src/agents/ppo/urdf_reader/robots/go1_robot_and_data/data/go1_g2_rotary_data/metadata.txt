@@ -1,0 +1,4 @@
+# Gait: g2_rotary
+# Samples: 5024
+# dt: 0.002s (500 Hz)
+# Duration: 10.05s
