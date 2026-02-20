@@ -225,192 +225,382 @@ class Go1(Robot):
     #     ),
     #     torque_delay_steps=motor_torque_delay_steps
     # )
+
+    # motors = MotorGroup(
+    #     device=sim_config.sim_device,
+    #     num_envs=num_envs,
+    #     motors=(
+    #         # ==================== FR (Front Right) ====================
+    #         MotorModel(
+    #             name="FR_hip_joint",
+    #             motor_control_mode=motor_control_mode,
+    #             init_position=0.0,
+    #             min_position=-1.0472,
+    #             max_position=1.0472,
+    #             min_velocity=-45.0,        # Increased from -30.1
+    #             max_velocity=45.0,         # Increased from 30.1
+    #             min_torque=-60.0,          # Increased from -23.7 (2.5x)
+    #             max_torque=60.0,           # Increased from 23.7
+    #             kp=80,                     # Increased for faster response
+    #             kd=2.0,                    # Increased for stability
+    #         ),
+    #         MotorModel(
+    #             name="FR_thigh_joint",
+    #             motor_control_mode=motor_control_mode,
+    #             init_position=0.9,
+    #             min_position=-1.5708,
+    #             max_position=3.4907,
+    #             min_velocity=-45.0,        # Increased from -30.1
+    #             max_velocity=45.0,         # Increased from 30.1
+    #             min_torque=-60.0,          # Increased from -23.7 (2.5x)
+    #             max_torque=60.0,           # Increased from 23.7
+    #             kp=100,                    # High for main propulsion
+    #             kd=2.5,
+    #         ),
+    #         MotorModel(
+    #             name="FR_calf_joint",
+    #             motor_control_mode=motor_control_mode,
+    #             init_position=-1.8,
+    #             min_position=-2.7227,
+    #             max_position=-0.83776,
+    #             min_velocity=-25.0,        # Increased from -15.7
+    #             max_velocity=25.0,         # Increased from 15.7
+    #             min_torque=-120.0,         # Increased from -45.43 (2.6x)
+    #             max_torque=120.0,          # Increased from 45.43
+    #             kp=120,                    # Highest for ground contact
+    #             kd=3.0,
+    #         ),
+    #         
+    #         # ==================== FL (Front Left) ====================
+    #         MotorModel(
+    #             name="FL_hip_joint",
+    #             motor_control_mode=motor_control_mode,
+    #             init_position=0.0,
+    #             min_position=-1.0472,
+    #             max_position=1.0472,
+    #             min_velocity=-45.0,
+    #             max_velocity=45.0,
+    #             min_torque=-60.0,
+    #             max_torque=60.0,
+    #             kp=80,
+    #             kd=2.0,
+    #         ),
+    #         MotorModel(
+    #             name="FL_thigh_joint",
+    #             motor_control_mode=motor_control_mode,
+    #             init_position=0.9,
+    #             min_position=-1.5708,
+    #             max_position=3.4907,
+    #             min_velocity=-45.0,
+    #             max_velocity=45.0,
+    #             min_torque=-60.0,
+    #             max_torque=60.0,
+    #             kp=100,
+    #             kd=2.5,
+    #         ),
+    #         MotorModel(
+    #             name="FL_calf_joint",
+    #             motor_control_mode=motor_control_mode,
+    #             init_position=-1.8,
+    #             min_position=-2.7227,
+    #             max_position=-0.83776,
+    #             min_velocity=-25.0,
+    #             max_velocity=25.0,
+    #             min_torque=-120.0,
+    #             max_torque=120.0,
+    #             kp=120,
+    #             kd=3.0,
+    #         ),
+    #         
+    #         # ==================== RR (Rear Right) ====================
+    #         MotorModel(
+    #             name="RR_hip_joint",
+    #             motor_control_mode=motor_control_mode,
+    #             init_position=0.0,
+    #             min_position=-1.0472,
+    #             max_position=1.0472,
+    #             min_velocity=-45.0,
+    #             max_velocity=45.0,
+    #             min_torque=-60.0,
+    #             max_torque=60.0,
+    #             kp=80,
+    #             kd=2.0,
+    #         ),
+    #         MotorModel(
+    #             name="RR_thigh_joint",
+    #             motor_control_mode=motor_control_mode,
+    #             init_position=0.9,
+    #             min_position=-0.5236,
+    #             max_position=4.5379,
+    #             min_velocity=-45.0,
+    #             max_velocity=45.0,
+    #             min_torque=-60.0,
+    #             max_torque=60.0,
+    #             kp=100,
+    #             kd=2.5,
+    #         ),
+    #         MotorModel(
+    #             name="RR_calf_joint",
+    #             motor_control_mode=motor_control_mode,
+    #             init_position=-1.8,
+    #             min_position=-2.7227,
+    #             max_position=-0.83776,
+    #             min_velocity=-25.0,
+    #             max_velocity=25.0,
+    #             min_torque=-120.0,
+    #             max_torque=120.0,
+    #             kp=120,
+    #             kd=3.0,
+    #         ),
+    #         
+    #         # ==================== RL (Rear Left) ====================
+    #         MotorModel(
+    #             name="RL_hip_joint",
+    #             motor_control_mode=motor_control_mode,
+    #             init_position=0.0,
+    #             min_position=-1.0472,
+    #             max_position=1.0472,
+    #             min_velocity=-45.0,
+    #             max_velocity=45.0,
+    #             min_torque=-60.0,
+    #             max_torque=60.0,
+    #             kp=80,
+    #             kd=2.0,
+    #         ),
+    #         MotorModel(
+    #             name="RL_thigh_joint",
+    #             motor_control_mode=motor_control_mode,
+    #             init_position=0.9,
+    #             min_position=-0.5236,
+    #             max_position=4.5379,
+    #             min_velocity=-45.0,
+    #             max_velocity=45.0,
+    #             min_torque=-60.0,
+    #             max_torque=60.0,
+    #             kp=100,
+    #             kd=2.5,
+    #         ),
+    #         MotorModel(
+    #             name="RL_calf_joint",
+    #             motor_control_mode=motor_control_mode,
+    #             init_position=-1.8,
+    #             min_position=-2.7227,
+    #             max_position=-0.83776,
+    #             min_velocity=-25.0,
+    #             max_velocity=25.0,
+    #             min_torque=-120.0,
+    #             max_torque=120.0,
+    #             kp=120,
+    #             kd=3.0,
+    #         ),
+    #     ),
+    #     torque_delay_steps=motor_torque_delay_steps
+    # )
+
     motors = MotorGroup(
-        device=sim_config.sim_device,
-        num_envs=num_envs,
-        motors=(
-            # ==================== FR (Front Right) ====================
+    device=sim_config.sim_device,
+    num_envs=num_envs,
+    motors=(
+        # ==================== FR (Front Right) ====================
             MotorModel(
-                name="FR_hip_joint",
+                name="1_FR_hip_joint",
                 motor_control_mode=motor_control_mode,
                 init_position=0.0,
-                min_position=-1.0472,
-                max_position=1.0472,
-                min_velocity=-45.0,        # Increased from -30.1
-                max_velocity=45.0,         # Increased from 30.1
-                min_torque=-60.0,          # Increased from -23.7 (2.5x)
-                max_torque=60.0,           # Increased from 23.7
-                kp=80,                     # Increased for faster response
-                kd=2.0,                    # Increased for stability
+                min_position=-0.802851455917,
+                max_position=0.802851455917,
+                min_velocity=-21.0,
+                max_velocity=21.0,
+                min_torque=-33.5,
+                max_torque=33.5,
+                kp=40.0,
+                kd=1.0,
             ),
             MotorModel(
-                name="FR_thigh_joint",
+                name="1_FR_thigh_joint",
                 motor_control_mode=motor_control_mode,
                 init_position=0.9,
-                min_position=-1.5708,
-                max_position=3.4907,
-                min_velocity=-45.0,        # Increased from -30.1
-                max_velocity=45.0,         # Increased from 30.1
-                min_torque=-60.0,          # Increased from -23.7 (2.5x)
-                max_torque=60.0,           # Increased from 23.7
-                kp=100,                    # High for main propulsion
-                kd=2.5,
+                min_position=-1.0471975512,
+                max_position=4.18879020479,
+                min_velocity=-21.0,
+                max_velocity=21.0,
+                min_torque=-33.5,
+                max_torque=33.5,
+                kp=40.0,
+                kd=1.0,
             ),
             MotorModel(
-                name="FR_calf_joint",
+                name="1_FR_calf_joint",
                 motor_control_mode=motor_control_mode,
                 init_position=-1.8,
-                min_position=-2.7227,
-                max_position=-0.83776,
-                min_velocity=-25.0,        # Increased from -15.7
-                max_velocity=25.0,         # Increased from 15.7
-                min_torque=-120.0,         # Increased from -45.43 (2.6x)
-                max_torque=120.0,          # Increased from 45.43
-                kp=120,                    # Highest for ground contact
-                kd=3.0,
+                min_position=-2.69653369433,
+                max_position=-0.916297857297,
+                min_velocity=-21.0,
+                max_velocity=21.0,
+                min_torque=-33.5,
+                max_torque=33.5,
+                kp=40.0,
+                kd=1.0,
             ),
-            
+    
             # ==================== FL (Front Left) ====================
             MotorModel(
-                name="FL_hip_joint",
+                name="2_FL_hip_joint",
                 motor_control_mode=motor_control_mode,
                 init_position=0.0,
-                min_position=-1.0472,
-                max_position=1.0472,
-                min_velocity=-45.0,
-                max_velocity=45.0,
-                min_torque=-60.0,
-                max_torque=60.0,
-                kp=80,
-                kd=2.0,
+                min_position=-0.802851455917,
+                max_position=0.802851455917,
+                min_velocity=-21.0,
+                max_velocity=21.0,
+                min_torque=-33.5,
+                max_torque=33.5,
+                kp=40.0,
+                kd=1.0,
             ),
             MotorModel(
-                name="FL_thigh_joint",
+                name="2_FL_thigh_joint",
                 motor_control_mode=motor_control_mode,
                 init_position=0.9,
-                min_position=-1.5708,
-                max_position=3.4907,
-                min_velocity=-45.0,
-                max_velocity=45.0,
-                min_torque=-60.0,
-                max_torque=60.0,
-                kp=100,
-                kd=2.5,
+                min_position=-1.0471975512,
+                max_position=4.18879020479,
+                min_velocity=-21.0,
+                max_velocity=21.0,
+                min_torque=-33.5,
+                max_torque=33.5,
+                kp=40.0,
+                kd=1.0,
             ),
             MotorModel(
-                name="FL_calf_joint",
+                name="2_FL_calf_joint",
                 motor_control_mode=motor_control_mode,
                 init_position=-1.8,
-                min_position=-2.7227,
-                max_position=-0.83776,
-                min_velocity=-25.0,
-                max_velocity=25.0,
-                min_torque=-120.0,
-                max_torque=120.0,
-                kp=120,
-                kd=3.0,
+                min_position=-2.69653369433,
+                max_position=-0.916297857297,
+                min_velocity=-21.0,
+                max_velocity=21.0,
+                min_torque=-33.5,
+                max_torque=33.5,
+                kp=40.0,
+                kd=1.0,
             ),
-            
+    
             # ==================== RR (Rear Right) ====================
             MotorModel(
-                name="RR_hip_joint",
+                name="3_RR_hip_joint",
                 motor_control_mode=motor_control_mode,
                 init_position=0.0,
-                min_position=-1.0472,
-                max_position=1.0472,
-                min_velocity=-45.0,
-                max_velocity=45.0,
-                min_torque=-60.0,
-                max_torque=60.0,
-                kp=80,
-                kd=2.0,
+                min_position=-0.802851455917,
+                max_position=0.802851455917,
+                min_velocity=-21.0,
+                max_velocity=21.0,
+                min_torque=-33.5,
+                max_torque=33.5,
+                kp=40.0,
+                kd=1.0,
             ),
             MotorModel(
-                name="RR_thigh_joint",
+                name="3_RR_thigh_joint",
                 motor_control_mode=motor_control_mode,
                 init_position=0.9,
-                min_position=-0.5236,
-                max_position=4.5379,
-                min_velocity=-45.0,
-                max_velocity=45.0,
-                min_torque=-60.0,
-                max_torque=60.0,
-                kp=100,
-                kd=2.5,
+                min_position=-1.0471975512,
+                max_position=4.18879020479,
+                min_velocity=-21.0,
+                max_velocity=21.0,
+                min_torque=-33.5,
+                max_torque=33.5,
+                kp=40.0,
+                kd=1.0,
             ),
             MotorModel(
-                name="RR_calf_joint",
+                name="3_RR_calf_joint",
                 motor_control_mode=motor_control_mode,
                 init_position=-1.8,
-                min_position=-2.7227,
-                max_position=-0.83776,
-                min_velocity=-25.0,
-                max_velocity=25.0,
-                min_torque=-120.0,
-                max_torque=120.0,
-                kp=120,
-                kd=3.0,
+                min_position=-2.69653369433,
+                max_position=-0.916297857297,
+                min_velocity=-21.0,
+                max_velocity=21.0,
+                min_torque=-33.5,
+                max_torque=33.5,
+                kp=40.0,
+                kd=1.0,
             ),
-            
+    
             # ==================== RL (Rear Left) ====================
             MotorModel(
-                name="RL_hip_joint",
+                name="4_RL_hip_joint",
                 motor_control_mode=motor_control_mode,
                 init_position=0.0,
-                min_position=-1.0472,
-                max_position=1.0472,
-                min_velocity=-45.0,
-                max_velocity=45.0,
-                min_torque=-60.0,
-                max_torque=60.0,
-                kp=80,
-                kd=2.0,
+                min_position=-0.802851455917,
+                max_position=0.802851455917,
+                min_velocity=-21.0,
+                max_velocity=21.0,
+                min_torque=-33.5,
+                max_torque=33.5,
+                kp=40.0,
+                kd=1.0,
             ),
             MotorModel(
-                name="RL_thigh_joint",
+                name="4_RL_thigh_joint",
                 motor_control_mode=motor_control_mode,
                 init_position=0.9,
-                min_position=-0.5236,
-                max_position=4.5379,
-                min_velocity=-45.0,
-                max_velocity=45.0,
-                min_torque=-60.0,
-                max_torque=60.0,
-                kp=100,
-                kd=2.5,
+                min_position=-1.0471975512,
+                max_position=4.18879020479,
+                min_velocity=-21.0,
+                max_velocity=21.0,
+                min_torque=-33.5,
+                max_torque=33.5,
+                kp=40.0,
+                kd=1.0,
             ),
             MotorModel(
-                name="RL_calf_joint",
+                name="4_RL_calf_joint",
                 motor_control_mode=motor_control_mode,
                 init_position=-1.8,
-                min_position=-2.7227,
-                max_position=-0.83776,
-                min_velocity=-25.0,
-                max_velocity=25.0,
-                min_torque=-120.0,
-                max_torque=120.0,
-                kp=120,
-                kd=3.0,
+                min_position=-2.69653369433,
+                max_position=-0.916297857297,
+                min_velocity=-21.0,
+                max_velocity=21.0,
+                min_torque=-33.5,
+                max_torque=33.5,
+                kp=40.0,
+                kd=1.0,
             ),
         ),
         torque_delay_steps=motor_torque_delay_steps
     )
 
-    com_offset = -to_torch([0.0211, 0.0, -0.0054],
-                       device=sim_config.sim_device)  # Go2 COM offset
+
+    # com_offset = -to_torch([0.0211, 0.0, -0.0054],
+    #                    device=sim_config.sim_device)  # Go2 COM offset
+    #
+    # self._hip_offset = to_torch(
+    #     [[0.1934, -0.0465, 0.], [0.1934, 0.0465, 0.], 
+    #      [-0.1934, -0.0465, 0.], [-0.1934, 0.0465, 0.]],  # Go2 hip positions
+    #     device=sim_config.sim_device) + com_offset
+    #
+    # delta_x, delta_y = 0.0, 0.0
+    # hip_position_single = to_torch((
+    #     (0.1934, -0.1420, 0),   # FR: hip_x, -(hip_y + l_hip)
+    #     (0.1934, 0.1420, 0),    # FL: hip_x, +(hip_y + l_hip)
+    #     (-0.1934, -0.1420, 0),  # RR
+    #     (-0.1934, 0.1420, 0),   # RL
+    # ), device=sim_config.sim_device)
+
+    com_offset = -to_torch([0.0, 0.0041, -0.0005],
+                   device=sim_config.sim_device)  # A1 COM offset
 
     self._hip_offset = to_torch(
-        [[0.1934, -0.0465, 0.], [0.1934, 0.0465, 0.], 
-         [-0.1934, -0.0465, 0.], [-0.1934, 0.0465, 0.]],  # Go2 hip positions
+        [[0.1805, -0.047, 0.], [0.1805, 0.047, 0.],
+         [-0.1805, -0.047, 0.], [-0.1805, 0.047, 0.]],  # A1 hip positions
         device=sim_config.sim_device) + com_offset
-
+    
     delta_x, delta_y = 0.0, 0.0
     hip_position_single = to_torch((
-        (0.1934, -0.1420, 0),   # FR: hip_x, -(hip_y + l_hip)
-        (0.1934, 0.1420, 0),    # FL: hip_x, +(hip_y + l_hip)
-        (-0.1934, -0.1420, 0),  # RR
-        (-0.1934, 0.1420, 0),   # RL
+        (0.1805, -0.1308, 0),   # FR: hip_x, -(hip_y + l_hip) = -(0.047 + 0.0838)
+        (0.1805,  0.1308, 0),   # FL: hip_x, +(hip_y + l_hip)
+        (-0.1805, -0.1308, 0),  # RR
+        (-0.1805,  0.1308, 0),  # RL
     ), device=sim_config.sim_device)
+
     self._hip_positions_in_body_frame = torch.stack([hip_position_single] *
                                                     num_envs,
                                                     dim=0)
@@ -419,7 +609,9 @@ class Go1(Robot):
                      viewer=viewer,
                      num_envs=num_envs,
                      init_positions=init_positions,
-                     urdf_path="data/go2/urdf/go2.urdf",
+                     # urdf_path="data/a1/urdf/a2.urdf",
+                     # urdf_path="data/a1/urdf/_A1u50.urdf",
+                     urdf_path="data/a1/urdf/_A1u150.urdf",
                      sim_config=sim_config,
                      motors=motors,
                      feet_names=[

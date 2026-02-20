@@ -9,10 +9,13 @@ def get_config():
 
   gait_config = ConfigDict()
   gait_config.gait_name = "g2_rotary"
-  gait_config.stepping_frequency = 1.5
+  gait_config.stepping_frequency = 2.0
   # Correct Order:[ FrontRight, FrontLeft, RearRight, RearLeft ]
-  gait_config.initial_offset = np.array([0.,0.1,.57,.47], dtype=np.float32) * (2 * np.pi)
-  gait_config.swing_ratio = np.array([1,1,1,1], dtype=np.float32) * 0.6
+  gait_config.initial_offset = np.array([0.,0.15,.5,.65], # transverse
+                                        dtype=np.float32) * (2 * np.pi)
+  gait_config.swing_ratio = np.array([0.75, 0.75, 0.75, 0.75], dtype=np.float32)
+  # gait_config.initial_offset = np.array([0.,0.1,.57,.47], dtype=np.float32) * (2 * np.pi)
+  # gait_config.swing_ratio = np.array([1,1,1,1], dtype=np.float32) * 0.6
   config.gait = gait_config
   config.learn_raibert_alpha = True
 
