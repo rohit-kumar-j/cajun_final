@@ -1,4 +1,4 @@
-"""Default config for asset options."""
+"""<src/configs/defaults/asset_options.py>Default config for asset options."""
 from isaacgym import gymapi
 from ml_collections import ConfigDict
 

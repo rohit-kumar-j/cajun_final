@@ -1,6 +1,0 @@
-dearpygui>=1.9.0
-PyOpenGL>=3.1.6
-PyOpenGL-accelerate>=3.1.6
-numpy>=1.21.0
-yourdfpy>=0.0.56
-trimesh>=3.15.0

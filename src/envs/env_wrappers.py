@@ -1,4 +1,4 @@
-"""Environment wrappers for normalizing RL environments."""
+"""<src/envs/env_wrappers.py>Environment wrappers for normalizing RL environments."""
 from absl import logging
 
 import torch

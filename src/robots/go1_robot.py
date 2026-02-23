@@ -9,12 +9,12 @@ import pybullet as p
 import torch
 
 import go1_interface
-from src.robots import go1
+from src.robots import unitree_quad
 from src.robots import robot_state_estimator
 from src.robots.motors import MotorCommand, MotorControlMode
 
 
-class Go1Robot(go1.Go1):
+class Go1Robot(unitree_quad.UnitreeQuad):
   """Go1 robot class."""
   def __init__(
       self,

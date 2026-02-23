@@ -1,4 +1,4 @@
-"""Default simulation config."""
+"""<src/configs/defaults/sim_config.py> Default simulation config."""
 
 from isaacgym import gymapi
 from ml_collections import ConfigDict
