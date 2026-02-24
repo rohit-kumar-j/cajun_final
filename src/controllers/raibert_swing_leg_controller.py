@@ -178,6 +178,8 @@ class RaibertSwingLegController:
             min=self._kp_min, max=self._kp_max
         ).unsqueeze(-1)
 
+        # self._raibert_kp = torch.full((self._num_envs, 1, 1), self._default_raibert_kp, device=self._device)
+
         new_leg_state     = torch.clone(self._gait_generator.desired_contact_state)
         new_foot_positions = torch.matmul(
             self._robot.base_rot_mat,
