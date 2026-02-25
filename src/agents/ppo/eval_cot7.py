@@ -424,7 +424,7 @@ def main(argv):
     print(f"Gait: {gait_name}\nOutput: {output_dir}")
     
     with config.unlocked():
-        velocity_schedule = torch.linspace(0.5, 6.0, 500)
+        velocity_schedule = torch.linspace(0.1, 5.0, 5000)
         config.environment.jumping_distance_schedule = velocity_schedule / config.environment.gait.stepping_frequency
         config.environment.max_jumps = 100000
     
@@ -507,6 +507,10 @@ def main(argv):
                 steps += 1
                 action = policy(state)
                 state, _, reward, done, info = env.step(action)
+
+                if done.any() == True:
+                    print("Env Reset")
+                    vel_idx = 0
                 
                 # Extract data using unwrapped env
                 t = _env._robot.time_since_reset.item()
@@ -521,6 +525,7 @@ def main(argv):
                 _current_sim_time = t
                 _current_vel = curr_vel
                 _desired_vel = des_vel
+                # print(f"des vel: {des_vel}")
                 
                 # Store data
                 data_arrays = _exit_state['data_arrays']
