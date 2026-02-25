@@ -1,0 +1,645 @@
+!!python/object:ml_collections.config_dict.config_dict.ConfigDict
+_convert_dict: true
+_fields:
+  env_class: !!python/name:src.envs.jump_env.JumpEnv ''
+  environment: !!python/object:ml_collections.config_dict.config_dict.ConfigDict
+    _convert_dict: true
+    _fields:
+      env: !!python/object:ml_collections.config_dict.config_dict.ConfigDict
+        _convert_dict: true
+        _fields:
+          action_lb: !!python/object/apply:numpy.core.multiarray._reconstruct
+            args:
+            - &id001 !!python/name:numpy.ndarray ''
+            - !!python/tuple
+              - 0
+            - !!binary |
+              Yg==
+            state: !!python/tuple
+            - 1
+            - !!python/tuple
+              - 21
+            - &id002 !!python/object/apply:numpy.dtype
+              args:
+              - f8
+              - false
+              - true
+              state: !!python/tuple
+              - 3
+              - <
+              - null
+              - null
+              - null
+              - -1
+              - -1
+              - 0
+            - false
+            - !!binary |
+              AAAAAAAA4D/8qfHSTWJQvwAAAAAAAAjA/Knx0k1iUL8AAAAAAAAIwPyp8dJNYlC//Knx0k1iUL8A
+              AAAAAAAEwPyp8dJNYlC/mpmZmZmZub8tQxzr4jYav/yp8dJNYlC/mpmZmZmZub8tQxzr4jYav/yp
+              8dJNYlC/mpmZmZmZub8tQxzr4jYav/yp8dJNYlC/mpmZmZmZub8tQxzr4jYav/yp8dJNYlC/
+          action_ub: !!python/object/apply:numpy.core.multiarray._reconstruct
+            args:
+            - *id001
+            - !!python/tuple
+              - 0
+            - !!binary |
+              Yg==
+            state: !!python/tuple
+            - 1
+            - !!python/tuple
+              - 21
+            - *id002
+            - false
+            - !!binary |
+              y6FFtvP9D0D8qfHSTWJQPwAAAAAAAAhA/Knx0k1iUD8AAAAAAAAIQPyp8dJNYlA//Knx0k1iUD8A
+              AAAAAAAEQPyp8dJNYlA/mpmZmZmZuT8tQxzr4jYaP5qZmZmZmck/mpmZmZmZuT8tQxzr4jYaP5qZ
+              mZmZmck/mpmZmZmZuT8tQxzr4jYaP5qZmZmZmck/mpmZmZmZuT8tQxzr4jYaP5qZmZmZmck/
+          env_dt: 0.01
+          episode_length_s: 20.0
+          foot_friction: 1.0
+          goal_lb: !!python/object/apply:torch._utils._rebuild_tensor_v2
+          - !!python/object/apply:torch.storage._load_from_bytes
+            - !!binary |
+              gAKKCmz8nEb5IGqoUBkugAJN6QMugAJ9cQAoWBAAAABwcm90b2NvbF92ZXJzaW9ucQFN6QNYDQAA
+              AGxpdHRsZV9lbmRpYW5xAohYCgAAAHR5cGVfc2l6ZXNxA31xBChYBQAAAHNob3J0cQVLAlgDAAAA
+              aW50cQZLBFgEAAAAbG9uZ3EHSwR1dS6AAihYBwAAAHN0b3JhZ2VxAGN0b3JjaApGbG9hdFN0b3Jh
+              Z2UKcQFYDgAAADk3MTk1Mzg1NjcwODQ4cQJYAwAAAGNwdXEDSwJOdHEEUS6AAl1xAFgOAAAAOTcx
+              OTUzODU2NzA4NDhxAWEuAgAAAAAAAACamZk+AAAAAA==
+          - 0
+          - !!python/tuple
+            - 2
+          - !!python/tuple
+            - 1
+          - false
+          - !!python/object/apply:collections.OrderedDict
+            - []
+          goal_ub: !!python/object/apply:torch._utils._rebuild_tensor_v2
+          - !!python/object/apply:torch.storage._load_from_bytes
+            - !!binary |
+              gAKKCmz8nEb5IGqoUBkugAJN6QMugAJ9cQAoWBAAAABwcm90b2NvbF92ZXJzaW9ucQFN6QNYDQAA
+              AGxpdHRsZV9lbmRpYW5xAohYCgAAAHR5cGVfc2l6ZXNxA31xBChYBQAAAHNob3J0cQVLAlgDAAAA
+              aW50cQZLBFgEAAAAbG9uZ3EHSwR1dS6AAihYBwAAAHN0b3JhZ2VxAGN0b3JjaApGbG9hdFN0b3Jh
+              Z2UKcQFYDgAAADk3MTk1Mzg0MDM1NTg0cQJYAwAAAGNwdXEDSwJOdHEEUS6AAl1xAFgOAAAAOTcx
+              OTUzODQwMzU1ODRxAWEuAgAAAAAAAAAAAABAAAAAAA==
+          - 0
+          - !!python/tuple
+            - 2
+          - !!python/tuple
+            - 1
+          - false
+          - !!python/object/apply:collections.OrderedDict
+            - []
+          include_foot_action: true
+          include_gait_action: true
+          learn_raibert_alpha: true
+          max_jumps: 30.0
+          mirror_foot_action: false
+          motor_strength_ratios: 1.0
+          terminate_on_body_contact: true
+          terminate_on_gravity_z: 0.5
+          terminate_on_height: 0.15
+          terminate_on_limb_contact: false
+          use_penetrating_contact: false
+          use_yaw_feedback: true
+          velocity_lb: 0.3
+          velocity_ub: 6.0
+          yaw_feedback_gain: 1.0
+        _locked: true
+        _type_safe: true
+      gait: !!python/object:ml_collections.config_dict.config_dict.ConfigDict
+        _convert_dict: true
+        _fields:
+          gait_name: g2_rotary
+          initial_offset: !!python/object/apply:numpy.core.multiarray._reconstruct
+            args:
+            - *id001
+            - !!python/tuple
+              - 0
+            - !!binary |
+              Yg==
+            state: !!python/tuple
+            - 1
+            - !!python/tuple
+              - 4
+            - &id003 !!python/object/apply:numpy.dtype
+              args:
+              - f4
+              - false
+              - true
+              state: !!python/tuple
+              - 3
+              - <
+              - null
+              - null
+              - null
+              - -1
+              - -1
+              - 0
+            - false
+            - !!binary |
+              AAAAADtGcT/bD0lAtLCCQA==
+          stepping_frequency: 2.0
+          swing_ratio: !!python/object/apply:numpy.core.multiarray._reconstruct
+            args:
+            - *id001
+            - !!python/tuple
+              - 0
+            - !!binary |
+              Yg==
+            state: !!python/tuple
+            - 1
+            - !!python/tuple
+              - 4
+            - *id003
+            - false
+            - !!binary |
+              AABAPwAAQD8AAEA/AABAPw==
+        _locked: true
+        _type_safe: true
+      obs: !!python/object:ml_collections.config_dict.config_dict.ConfigDict
+        _convert_dict: true
+        _fields:
+          alpha_lb:
+          - 0.5
+          alpha_ub:
+          - 2.0
+          height_obs_lb: -3.0
+          height_obs_ub: 3.0
+          observation_robot_lb:
+          - 0.0
+          - -3.14
+          - -3.14
+          - -4.0
+          - -4.0
+          - -10.0
+          - -3.14
+          - -3.14
+          - -3.14
+          - -0.5
+          - -0.5
+          - -0.4
+          - -0.5
+          - -0.5
+          - -0.4
+          - -0.5
+          - -0.5
+          - -0.4
+          - -0.5
+          - -0.5
+          - -0.4
+          observation_robot_ub:
+          - 0.6
+          - 3.14
+          - 3.14
+          - 8.0
+          - 4.0
+          - 10.0
+          - 3.14
+          - 3.14
+          - 3.14
+          - 0.5
+          - 0.5
+          - 0.0
+          - 0.5
+          - 0.5
+          - 0.0
+          - 0.5
+          - 0.5
+          - 0.0
+          - 0.5
+          - 0.5
+          - 0.0
+          task_lb:
+          - -2.0
+          - -2.0
+          - -1.0
+          - -1.0
+          - -1.0
+          task_ub:
+          - 2.0
+          - 2.0
+          - 1.0
+          - 1.0
+          - 1.0
+        _locked: true
+        _type_safe: true
+      qp: !!python/object:ml_collections.config_dict.config_dict.ConfigDict
+        _convert_dict: true
+        _fields:
+          acc_lb:
+          - -30.0
+          - -30.0
+          - -10.0
+          - -20.0
+          - -20.0
+          - -20.0
+          acc_ub:
+          - 30.0
+          - 30.0
+          - 30.0
+          - 20.0
+          - 20.0
+          - 20.0
+          base_orientation_kd: !!python/object/apply:numpy.core.multiarray._reconstruct
+            args:
+            - *id001
+            - !!python/tuple
+              - 0
+            - !!binary |
+              Yg==
+            state: !!python/tuple
+            - 1
+            - !!python/tuple
+              - 3
+            - *id002
+            - false
+            - !!binary |
+              AAAAAAAAJEAAAAAAAAAkQAAAAAAAACRA
+          base_orientation_kp: !!python/object/apply:numpy.core.multiarray._reconstruct
+            args:
+            - *id001
+            - !!python/tuple
+              - 0
+            - !!binary |
+              Yg==
+            state: !!python/tuple
+            - 1
+            - !!python/tuple
+              - 3
+            - *id002
+            - false
+            - !!binary |
+              AAAAAAAASUAAAAAAAAAAAAAAAAAAAAAA
+          base_position_kd: !!python/object/apply:numpy.core.multiarray._reconstruct
+            args:
+            - *id001
+            - !!python/tuple
+              - 0
+            - !!binary |
+              Yg==
+            state: !!python/tuple
+            - 1
+            - !!python/tuple
+              - 3
+            - *id002
+            - false
+            - !!binary |
+              AAAAAAAAJEAAAAAAAAAkQAAAAAAAACRA
+          base_position_kp: !!python/object/apply:numpy.core.multiarray._reconstruct
+            args:
+            - *id001
+            - !!python/tuple
+              - 0
+            - !!binary |
+              Yg==
+            state: !!python/tuple
+            - 1
+            - !!python/tuple
+              - 3
+            - *id002
+            - false
+            - !!binary |
+              AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          body_inertia: !!python/object/apply:numpy.core.multiarray._reconstruct
+            args:
+            - *id001
+            - !!python/tuple
+              - 0
+            - !!binary |
+              Yg==
+            state: !!python/tuple
+            - 1
+            - !!python/tuple
+              - 3
+            - *id002
+            - false
+            - !!binary |
+              4noUrkfhyj/MzMzMzMzgP8zMzMzMzOA/
+          body_mass: 13.076
+          clip_grf: true
+          desired_body_height: 0.26
+          foot_friction_coef: 0.9
+          foot_height_lb: -0.35
+          foot_height_ub: -0.1
+          grf_z_lb: 10.0
+          grf_z_ub: 250.0
+          stance_kd: 1.0
+          stance_kp: 30.0
+          use_full_qp: false
+          weight_ddq: !!python/object/apply:numpy.core.multiarray._reconstruct
+            args:
+            - *id001
+            - !!python/tuple
+              - 0
+            - !!binary |
+              Yg==
+            state: !!python/tuple
+            - 1
+            - !!python/tuple
+              - 6
+              - 6
+            - *id002
+            - false
+            - !!binary |
+              AAAAAAAA8D8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+              AAAAAADwPwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+              AAAAACRAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+              AAAAJEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+              AAAkQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+              APA/
+          weight_grf: 0.0001
+        _locked: true
+        _type_safe: true
+      raibert: !!python/object:ml_collections.config_dict.config_dict.ConfigDict
+        _convert_dict: true
+        _fields:
+          default_kp: 0.4
+          desired_base_height: 0.26
+          foot_height: 0.0
+          foot_landing_clearance: 0.0
+          kp_base: 0.3
+          kp_max: 0.65
+          kp_min: 0.3
+          kp_vel_scale: 0.05
+        _locked: true
+        _type_safe: true
+      rewards: !!python/object:ml_collections.config_dict.config_dict.ConfigDict
+        _convert_dict: true
+        _fields:
+          clip_negative_reward: false
+          clip_negative_terminal_reward: false
+          com_height_reward_max: 0.5
+          energy_clip_max: 2000.0
+          foot_clearance_threshold: 0.02
+          foot_radius: 0.022
+          limb_force_clip_max: 10.0
+          min_stepping_freq_reward: 2.0
+          motor_heat_coefficient: 0.3
+          normalize_reward_by_phase: true
+          rewards:
+          - !!python/tuple
+            - upright
+            - 0.02
+          - !!python/tuple
+            - contact_consistency
+            - 0.008
+          - !!python/tuple
+            - foot_slipping
+            - 0.032
+          - !!python/tuple
+            - foot_clearance
+            - 0.008
+          - !!python/tuple
+            - out_of_bound_action
+            - 0.01
+          - !!python/tuple
+            - knee_contact
+            - 0.064
+          - !!python/tuple
+            - com_distance_to_goal_squared
+            - 0.016
+          - !!python/tuple
+            - com_height
+            - 0.01
+          - !!python/tuple
+            - speed_tracking
+            - 0.01
+          - !!python/tuple
+            - forward_speed
+            - 0.02
+          terminal_rewards: []
+        _locked: true
+        _type_safe: true
+      robot: !!python/object:ml_collections.config_dict.config_dict.ConfigDict
+        _convert_dict: true
+        _fields:
+          calf_names:
+          - 1_FR_calf
+          - 2_FL_calf
+          - 3_RR_calf
+          - 4_RL_calf
+          com_offset:
+          - 0.011611
+          - 0.004437
+          - 0.000108
+          enable_realistic_motor_behaviour: true
+          feet_names:
+          - 1_FR_foot
+          - 2_FL_foot
+          - 3_RR_foot
+          - 4_RL_foot
+          foot_radius: 0.022
+          hip_positions:
+          - - 0.1881
+            - -0.04675
+            - 0.0
+          - - 0.1881
+            - 0.04675
+            - 0.0
+          - - -0.1881
+            - -0.04675
+            - 0.0
+          - - -0.1881
+            - 0.04675
+            - 0.0
+          hip_positions_with_abduction:
+          - - 0.1835
+            - -0.131
+            - 0.0
+          - - 0.1835
+            - 0.122
+            - 0.0
+          - - -0.1926
+            - -0.131
+            - 0.0
+          - - -0.1926
+            - 0.122
+            - 0.0
+          init_height: 0.268
+          l_hip: 0.08
+          l_low: 0.233
+          l_up: 0.213
+          motor_torque_delay_steps: 5
+          motors:
+          - init_position: 0.0
+            kd: 1.0
+            kp: 100.0
+            max_position: 0.8029
+            max_torque: 23.7
+            max_velocity: 30.0
+            min_position: -0.8029
+            min_torque: -23.7
+            min_velocity: -30.0
+            name: 1_FR_hip_joint
+          - init_position: 0.9
+            kd: 1.0
+            kp: 100.0
+            max_position: 4.1888
+            max_torque: 23.7
+            max_velocity: 30.0
+            min_position: -1.0472
+            min_torque: -23.7
+            min_velocity: -30.0
+            name: 1_FR_thigh_joint
+          - init_position: -1.8
+            kd: 1.0
+            kp: 100.0
+            max_position: -0.9163
+            max_torque: 35.55
+            max_velocity: 20.0
+            min_position: -2.6965
+            min_torque: -35.55
+            min_velocity: -20.0
+            name: 1_FR_calf_joint
+          - init_position: 0.0
+            kd: 1.0
+            kp: 100.0
+            max_position: 0.8029
+            max_torque: 23.7
+            max_velocity: 30.0
+            min_position: -0.8029
+            min_torque: -23.7
+            min_velocity: -30.0
+            name: 2_FL_hip_joint
+          - init_position: 0.9
+            kd: 1.0
+            kp: 100.0
+            max_position: 4.1888
+            max_torque: 23.7
+            max_velocity: 30.0
+            min_position: -1.0472
+            min_torque: -23.7
+            min_velocity: -30.0
+            name: 2_FL_thigh_joint
+          - init_position: -1.8
+            kd: 1.0
+            kp: 100.0
+            max_position: -0.9163
+            max_torque: 35.55
+            max_velocity: 20.0
+            min_position: -2.6965
+            min_torque: -35.55
+            min_velocity: -20.0
+            name: 2_FL_calf_joint
+          - init_position: 0.0
+            kd: 1.0
+            kp: 100.0
+            max_position: 0.8029
+            max_torque: 23.7
+            max_velocity: 30.0
+            min_position: -0.8029
+            min_torque: -23.7
+            min_velocity: -30.0
+            name: 3_RR_hip_joint
+          - init_position: 0.9
+            kd: 1.0
+            kp: 100.0
+            max_position: 4.1888
+            max_torque: 23.7
+            max_velocity: 30.0
+            min_position: -1.0472
+            min_torque: -23.7
+            min_velocity: -30.0
+            name: 3_RR_thigh_joint
+          - init_position: -1.8
+            kd: 1.0
+            kp: 100.0
+            max_position: -0.9163
+            max_torque: 35.55
+            max_velocity: 20.0
+            min_position: -2.6965
+            min_torque: -35.55
+            min_velocity: -20.0
+            name: 3_RR_calf_joint
+          - init_position: 0.0
+            kd: 1.0
+            kp: 100.0
+            max_position: 0.8029
+            max_torque: 23.7
+            max_velocity: 30.0
+            min_position: -0.8029
+            min_torque: -23.7
+            min_velocity: -30.0
+            name: 4_RL_hip_joint
+          - init_position: 0.9
+            kd: 1.0
+            kp: 100.0
+            max_position: 4.1888
+            max_torque: 23.7
+            max_velocity: 30.0
+            min_position: -1.0472
+            min_torque: -23.7
+            min_velocity: -30.0
+            name: 4_RL_thigh_joint
+          - init_position: -1.8
+            kd: 1.0
+            kp: 100.0
+            max_position: -0.9163
+            max_torque: 35.55
+            max_velocity: 20.0
+            min_position: -2.6965
+            min_torque: -35.55
+            min_velocity: -20.0
+            name: 4_RL_calf_joint
+          thigh_names:
+          - 1_FR_thigh
+          - 2_FL_thigh
+          - 3_RR_thigh
+          - 4_RL_thigh
+          urdf_path: data/go1/urdf/go1.urdf
+        _locked: true
+        _type_safe: true
+    _locked: true
+    _type_safe: true
+  training: !!python/object:ml_collections.config_dict.config_dict.ConfigDict
+    _convert_dict: true
+    _fields:
+      algorithm: !!python/object:ml_collections.config_dict.config_dict.ConfigDict
+        _convert_dict: true
+        _fields:
+          clip_param: 0.2
+          desired_kl: 0.01
+          entropy_coef: 0.01
+          gamma: 0.99
+          lam: 0.95
+          learning_rate: 0.001
+          max_grad_norm: 1.0
+          num_learning_epochs: 5
+          num_mini_batches: 4
+          schedule: adaptive
+          use_clipped_value_loss: true
+          value_loss_coef: 1.0
+        _locked: true
+        _type_safe: true
+      policy: !!python/object:ml_collections.config_dict.config_dict.ConfigDict
+        _convert_dict: true
+        _fields:
+          activation: elu
+          actor_hidden_dims:
+          - 512
+          - 256
+          - 128
+          critic_hidden_dims:
+          - 512
+          - 256
+          - 128
+          init_noise_std: 0.5
+        _locked: true
+        _type_safe: true
+      runner: !!python/object:ml_collections.config_dict.config_dict.ConfigDict
+        _convert_dict: true
+        _fields:
+          algorithm_class_name: PPO
+          experiment_name: g2_transverse_go1
+          max_iterations: 16000
+          num_steps_per_env: 24
+          policy_class_name: ActorCritic
+          save_interval: 500
+        _locked: true
+        _type_safe: true
+      seed: 1
+    _locked: true
+    _type_safe: true
+_locked: true
+_type_safe: true
